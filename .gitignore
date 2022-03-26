@@ -8,3 +8,5 @@
 /cracks
 /build*/
 /default.prm
+.idea
+cmake-build-debug

@@ -11,6 +11,7 @@
 // 2. Primal dual active set strategy to treat crack irreversibility
 // 3. Predictor-corrector mesh adaptivity
 // 4. Parallel computing using MPI, p4est, and trilinos
+#include "hello.h"
 
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/base/logstream.h>
