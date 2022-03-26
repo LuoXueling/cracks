@@ -46,16 +46,6 @@ FOREACH(_source_file ${TARGET_SRC})
     APPEND PROPERTY COMPILE_DEFINITIONS SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 ENDFOREACH()
 
-
-# indenting:
-
-ADD_CUSTOM_TARGET(indent
-  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-  COMMAND ./contrib/indent
-  COMMENT "Indenting all header and source files..."
-  )
-
-
 # include
 
 INCLUDE_DIRECTORIES("include")
