@@ -56,12 +56,6 @@ ADD_CUSTOM_TARGET(indent
   )
 
 
-# testing:
-
-ENABLE_TESTING()
-
-ADD_SUBDIRECTORY(tests)
-
 # include
 
 INCLUDE_DIRECTORIES("include")
