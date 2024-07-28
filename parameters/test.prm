@@ -1,0 +1,49 @@
+subsection Project
+  set Project name = test
+  set Mesh from = ../meshes/singleNotchTension5.inp
+  set Load sequence from = script
+  set Enable phase field = false
+end
+
+subsection Runtime
+  # Time step
+  set Max No of timesteps = 10
+  set Timestep size = 1.0
+  set Timestep size to switch to = 1.0
+  set Switch timestep after steps = 0
+
+  # Solver
+  set Use Direct Inner Solver = false
+  set Newton lower bound = 1.0e-10
+  set Newton maximum steps = 10
+  set Upper Newton rho = 0.999
+  set Line search maximum steps = 5
+  set Line search damping = 0.5
+  set Decompose stress in rhs = 0.0
+  set Decompose stress in matrix = 0.0
+end
+
+subsection Material
+    set Young's modulus = 2000
+    set Poisson's ratio = 0.3
+    set Critical energy release rate = 1
+end
+
+subsection Finite element system
+  # Physical dimension
+  set Physical dimension = 2
+
+  # Displacement system polynomial order
+  set Polynomial degree = 2
+
+  # Gauss quadrature order
+  set Quadrature order  = 3
+
+  # Mesh refinement
+  set Refine = false
+  set Global pre-refinement steps = 1
+  set Local pre-refinement steps = 0
+  set Adaptive refinement cycles = 0
+  set Value of phase field for refinement = 0.0
+end
+

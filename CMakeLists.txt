@@ -3,7 +3,7 @@
 ##
 
 # Set the name of the project and target:
-SET(TARGET "cracks")
+SET(TARGET "main")
 
 SET(TARGET_SRC
   ${TARGET}.cc

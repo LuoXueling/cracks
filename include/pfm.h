@@ -1583,7 +1583,7 @@ template <int dim> void FracturePhaseFieldProblem<dim>::output_results() const {
   DataOut<dim> data_out;
   {
     std::vector<std::string> solution_names(dim, "displacement");
-    solution_names.push_back("phasefield");
+
     std::vector<DataComponentInterpretation::DataComponentInterpretation>
         data_component_interpretation(
             dim, DataComponentInterpretation::component_is_part_of_vector);
