@@ -52,13 +52,19 @@ template <int dim> void PhaseFieldFracture<dim>::run() {
             << std::endl;
   ctl.dcout << "Number of cores " << MultithreadInfo::n_cores() << std::endl;
 
+  ctl.timer.enter_subsection("Set mesh");
   setup_mesh();
+  ctl.timer.leave_subsection("Set mesh");
+
+  ctl.timer.enter_subsection("Initialize system");
   setup_system();
+  ctl.timer.leave_subsection("Initialize system");
 
   //  if (ctl.params.enable_phase_field) {
   //    enforce_phase_field_limitation();
   //  }
 
+  ctl.timer.enter_subsection("Solve Newton system");
   unsigned int refinement_cycle = 0;
   double finishing_timestep_loop = 0;
   double tmp_timestep = 0.0;
@@ -95,9 +101,12 @@ template <int dim> void PhaseFieldFracture<dim>::run() {
       // might not converge. To not abort the program we catch the
       // exception and retry with a smaller step.
       //          use_old_timestep_pf = false;
+
       elasticity.record_old_solution(ctl);
       try {
+        ctl.computing_timer.enter_subsection("Solve elasticity");
         newton_reduction = elasticity.newton_iteration(ctl);
+        ctl.computing_timer.leave_subsection("Solve elasticity");
 
         while (newton_reduction > ctl.params.upper_newton_rho) {
           //              use_old_timestep_pf = true;
@@ -105,7 +114,9 @@ template <int dim> void PhaseFieldFracture<dim>::run() {
           ctl.current_timestep = ctl.current_timestep / 10.0;
           ctl.time += ctl.current_timestep;
           elasticity.return_old_solution(ctl);
+          ctl.computing_timer.enter_subsection("Solve elasticity");
           newton_reduction = elasticity.newton_iteration(ctl);
+          ctl.computing_timer.leave_subsection("Solve elasticity");
 
           if (ctl.current_timestep < 1.0e-9) {
             ctl.pcout << "Step size too small - keeping the step size"
@@ -144,20 +155,24 @@ template <int dim> void PhaseFieldFracture<dim>::run() {
 
     // Recover time step
     ctl.current_timestep = tmp_current_timestep;
-
+    ctl.timer.leave_subsection("Solve Newton system");
+    ctl.timer.enter_subsection("Calculate outputs");
+    ctl.computing_timer.enter_subsection("Calculate outputs");
     output_results();
-
+    ctl.computing_timer.leave_subsection("Calculate outputs");
+    ctl.timer.leave_subsection("Calculate outputs");
+    ctl.timer.enter_subsection("Solve Newton system");
     ++ctl.timestep_number;
 
     ctl.computing_timer.print_summary();
     ctl.computing_timer.reset();
     ctl.pcout << std::endl;
   } while (ctl.timestep_number <= ctl.params.max_no_timesteps);
+  ctl.timer.leave_subsection("Solve Newton system");
   ctl.timer.manual_print_summary(ctl.dcout.fout);
 }
 
 template <int dim> void PhaseFieldFracture<dim>::setup_mesh() {
-  ctl.timer.enter_subsection("Setup mesh");
   AbaqusGridIn<dim> grid_in;
   /**
    * similar to normal use of GridIn.
@@ -177,17 +192,10 @@ template <int dim> void PhaseFieldFracture<dim>::setup_mesh() {
   }
   ctl.dcout << "Find " << ctl.triangulation.n_global_active_cells()
             << " elements" << std::endl;
-
-  ctl.timer.leave_subsection();
 }
 
 template <int dim> void PhaseFieldFracture<dim>::setup_system() {
-  ctl.timer.enter_subsection("Setup system");
-  TimerOutput::Scope t(ctl.computing_timer, "Setup system");
-
   elasticity.setup_system(ctl);
-
-  ctl.timer.leave_subsection();
 }
 
 template <int dim> void PhaseFieldFracture<dim>::refine_grid() {
@@ -208,9 +216,6 @@ template <int dim> void PhaseFieldFracture<dim>::refine_grid() {
 }
 
 template <int dim> void PhaseFieldFracture<dim>::output_results() {
-  ctl.timer.enter_subsection("Output results");
-  TimerOutput::Scope t(ctl.computing_timer, "Output results");
-
   DataOut<dim> data_out;
   data_out.attach_triangulation(ctl.triangulation);
 
@@ -240,8 +245,6 @@ template <int dim> void PhaseFieldFracture<dim>::output_results() {
     ctl.statistics.write_text(stat_file);
     stat_file.close();
   }
-
-  ctl.timer.leave_subsection();
 }
 
 #endif
