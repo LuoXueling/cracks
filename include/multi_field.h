@@ -76,7 +76,7 @@ MultiFieldCfg<dim>::MultiFieldCfg(const Parameters::AllParameters &params)
     total_components = disp_dim;
     block_component = std::vector<unsigned int>(disp_dim, 0);
   }
-  n_blocks = 1;
+  n_blocks = 2;
 
   /**
    * @code
@@ -117,6 +117,9 @@ MultiFieldCfg<dim>::MultiFieldCfg(const Parameters::AllParameters &params)
     extractors.phase_field =
         FEValuesExtractors::Scalar(component_indices.phase_field);
   }
+
+  components_to_blocks.resize(n_components, 0);
+  components_to_blocks[component_indices.phase_field] = 1;
 }
 
 template <class PreconditionerA, class PreconditionerC>

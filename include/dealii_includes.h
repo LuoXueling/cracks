@@ -17,6 +17,7 @@
 #include <deal.II/base/function_parser.h>
 #include <deal.II/base/conditional_ostream.h>
 #include <deal.II/base/index_set.h>
+#include <deal.II/base/tensor.h>
 
 #include <deal.II/lac/block_vector.h>
 #include <deal.II/lac/full_matrix.h>
@@ -47,6 +48,7 @@ using ConstraintMatrix = dealii::AffineConstraints<double>;
 #include <deal.II/grid/grid_tools.h>
 #include <deal.II/grid/grid_in.h>
 #include <deal.II/grid/grid_out.h>
+#include <deal.II/grid/manifold_lib.h>
 
 #include <deal.II/dofs/dof_handler.h>
 #include <deal.II/dofs/dof_renumbering.h>

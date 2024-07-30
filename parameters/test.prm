@@ -1,32 +1,38 @@
 subsection Project
   set Project name = test
-  set Mesh from = ../meshes/singleNotchTension5.inp
+  set Mesh from = ../meshes/singleNotchCoarse.inp
   set Load sequence from = script
-  set Enable phase field = false
+  set Enable phase field = true
 end
 
 subsection Runtime
   # Time step
-  set Max No of timesteps = 10
-  set Timestep size = 1.0
-  set Timestep size to switch to = 1.0
-  set Switch timestep after steps = 0
+  set Max No of timesteps = 5
+  set Timestep size = 1.0e-4
+  set Timestep size to switch to = 1.0e-5
+  set Switch timestep after steps = 58
 
   # Solver
   set Use Direct Inner Solver = false
-  set Newton lower bound = 1.0e-10
-  set Newton maximum steps = 10
+  set Newton lower bound = 1.0e-6
+  set Newton maximum steps = 50
   set Upper Newton rho = 0.999
-  set Line search maximum steps = 5
-  set Line search damping = 0.5
-  set Decompose stress in rhs = 0.0
-  set Decompose stress in matrix = 0.0
+  set Line search maximum steps = 10
+  set Line search damping = 0.6
+  set Decompose stress in rhs of displacement = none
+  set Decompose stress in matrix of displacement = none
+  set Decompose energy in phase field = none
+
+  # Numerical
+  set Constant small quantity k = 1.0e-6
 end
 
 subsection Material
     set Young's modulus = 2000
     set Poisson's ratio = 0.3
     set Critical energy release rate = 1
+    set Phase field length scale = 0.015
+    set Plane state = strain
 end
 
 subsection Finite element system
@@ -34,7 +40,7 @@ subsection Finite element system
   set Physical dimension = 2
 
   # Displacement system polynomial order
-  set Polynomial degree = 2
+  set Polynomial degree = 1
 
   # Gauss quadrature order
   set Quadrature order  = 3

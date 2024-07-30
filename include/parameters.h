@@ -30,8 +30,7 @@ void Project::declare_parameters(ParameterHandler &prm) {
                       Patterns::FileName(Patterns::FileName::FileType::output));
     prm.declare_entry("Load sequence from", "script",
                       Patterns::FileName(Patterns::FileName::FileType::input));
-    prm.declare_entry("Enable phase field", "true",
-                      Patterns::Bool());
+    prm.declare_entry("Enable phase field", "true", Patterns::Bool());
   }
   prm.leave_subsection();
 }
@@ -59,8 +58,10 @@ struct Runtime {
   double upper_newton_rho;
   unsigned int max_no_line_search_steps;
   double line_search_damping;
-  double decompose_stress_rhs;
-  double decompose_stress_matrix;
+  std::string decompose_stress_rhs_u;
+  std::string decompose_stress_matrix_u;
+  std::string decompose_energy_phi;
+  double constant_k;
 
   static void declare_parameters(ParameterHandler &prm);
 
@@ -90,9 +91,17 @@ void Runtime::declare_parameters(ParameterHandler &prm) {
 
     prm.declare_entry("Line search damping", "0.5", Patterns::Double(0));
 
-    prm.declare_entry("Decompose stress in rhs", "0.0", Patterns::Double(0));
+    prm.declare_entry("Decompose stress in rhs of displacement", "spectral",
+                      Patterns::Selection("spectral|none"));
 
-    prm.declare_entry("Decompose stress in matrix", "0.0", Patterns::Double(0));
+    prm.declare_entry("Decompose stress in matrix of displacement", "spectral",
+                      Patterns::Selection("spectral|none"));
+
+    prm.declare_entry("Decompose energy in phase field", "spectral",
+                      Patterns::Selection("spectral|none"));
+
+    prm.declare_entry("Constant small quantity k", "1.0e-6",
+                      Patterns::Double(0));
   }
   prm.leave_subsection();
 }
@@ -124,8 +133,13 @@ void Runtime::parse_parameters(ParameterHandler &prm) {
     // Decompose stress in plus (tensile) and minus (compression)
     // 0.0: no decomposition, 1.0: with decomposition
     // Motivation see Miehe et al. (2010)
-    decompose_stress_rhs = prm.get_double("Decompose stress in rhs");
-    decompose_stress_matrix = prm.get_double("Decompose stress in matrix");
+    decompose_stress_rhs_u = prm.get("Decompose stress in rhs of displacement");
+    decompose_stress_matrix_u =
+        prm.get("Decompose stress in matrix of displacement");
+
+    decompose_energy_phi = prm.get("Decompose energy in phase field");
+
+    constant_k = prm.get_double("Constant small quantity k");
   }
   prm.leave_subsection();
 }
@@ -134,6 +148,12 @@ struct Material {
   double E;
   double v;
   double Gc;
+  double l_phi;
+  double lambda;
+  double mu;
+  double lame_coefficient_mu;
+  double lame_coefficient_lambda;
+  std::string plane_state;
 
   static void declare_parameters(ParameterHandler &prm);
 
@@ -146,6 +166,8 @@ void Material::declare_parameters(ParameterHandler &prm) {
     prm.declare_entry("Young's modulus", "1000", Patterns::Double(0));
     prm.declare_entry("Poisson's ratio", "0.3", Patterns::Double(0, 0.5));
     prm.declare_entry("Critical energy release rate", "1", Patterns::Double(0));
+    prm.declare_entry("Phase field length scale", "0.01", Patterns::Double(0));
+    prm.declare_entry("Plane state", "stress", Patterns::Selection("stress|strain"));
   }
   prm.leave_subsection();
 }
@@ -156,8 +178,11 @@ void Material::parse_parameters(ParameterHandler &prm) {
     E = prm.get_double("Young's modulus");
     v = prm.get_double("Poisson's ratio");
     Gc = prm.get_double("Critical energy release rate");
+    l_phi = prm.get_double("Phase field length scale");
   }
   prm.leave_subsection();
+  lame_coefficient_mu = E / (2.0 * (1 + v));
+  lame_coefficient_lambda = (2 * v * lame_coefficient_mu) / (1.0 - 2 * v);
 }
 
 struct FESystem {
@@ -169,7 +194,6 @@ struct FESystem {
   unsigned int n_local_pre_refine;
   unsigned int n_refinement_cycles;
   double value_phase_field_for_refinement;
-
 
   static void declare_parameters(ParameterHandler &prm);
 
