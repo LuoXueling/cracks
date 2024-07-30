@@ -7,7 +7,7 @@ end
 
 subsection Runtime
   # Time step
-  set Max No of timesteps = 5
+  set Max No of timesteps = 88
   set Timestep size = 1.0e-4
   set Timestep size to switch to = 1.0e-5
   set Switch timestep after steps = 58

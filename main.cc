@@ -15,7 +15,7 @@
 
 #include "dealii_includes.h"
 #include "parameters.h"
-#include "phase_field_fracutre.h"
+#include "phase_field_fracture.h"
 
 int main(int argc, char *argv[])
 {
@@ -31,14 +31,17 @@ int main(int argc, char *argv[])
     else
       params.set_parameters("../parameters/test.prm");
 
-    // prepare directories
-    std::string command;
-    command = "mkdir output";
-    system(command.c_str());
-    command = "mkdir " + params.output_dir;
-    system(command.c_str());
-    command = "cp " + params.param_dir + " " + params.output_dir + "params.prm";
-    system(command.c_str());
+    if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0) {
+      // prepare directories
+      std::string command;
+      command = "mkdir output";
+      system(command.c_str());
+      command = "mkdir " + params.output_dir;
+      system(command.c_str());
+      command =
+          "cp " + params.param_dir + " " + params.output_dir + "params.prm";
+      system(command.c_str());
+    }
 
     if (params.dim == 2)
     {

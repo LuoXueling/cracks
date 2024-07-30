@@ -1,23 +1,21 @@
-/**
- * Xueling Luo @ Shanghai Jiao Tong University, 2022
- * This code is for multiscale phase field fracture.
- **/
+//
+// Created by xlluo on 24-7-30.
+//
 
-#ifndef PHASE_FIELD_FRACTURE_H
-#define PHASE_FIELD_FRACTURE_H
+#ifndef CRACKS_PHASE_FIELD_H
+#define CRACKS_PHASE_FIELD_H
 
 #include "abaqus_grid_in.h"
 #include "constitutive_law.h"
 #include "dealii_includes.h"
 #include "dirichlet_boundary.h"
-#include "multi_field.h"
 #include "parameters.h"
 #include "utils.h"
 #include <fstream>
 #include <iostream>
 using namespace dealii;
 
-template <int dim> class PhaseFieldFracture {
+template <int dim> class PHASE_FIELD {
 public:
   PhaseFieldFracture(Parameters::AllParameters &);
 
@@ -938,4 +936,5 @@ template <int dim> void PhaseFieldFracture<dim>::compute_load() {
   statistics.set_scientific("Load y", true);
 }
 
-#endif
+
+#endif // CRACKS_PHASE_FIELD_H

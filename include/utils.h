@@ -226,30 +226,6 @@ void eigen_vectors_and_values(double &E_eigenvalue_1, double &E_eigenvalue_2,
   }
 }
 
-template <int dim> class InitialValues : public Function<dim> {
-public:
-  InitialValues(const unsigned int n_components)
-      : Function<dim>(n_components), n_components(n_components) {}
-
-  virtual double value(const Point<dim> &p,
-                       const unsigned int component = 0) const {
-    return 0.0;
-  };
-
-  virtual void vector_value(const Point<dim> &p, Vector<double> &value) const;
-
-private:
-  const unsigned int n_components;
-};
-
-template <int dim>
-void InitialValues<dim>::vector_value(const Point<dim> &p,
-                                      Vector<double> &values) const {
-  for (unsigned int comp = 0; comp < this->n_components; ++comp)
-    values(comp) = InitialValues<dim>::value(p, comp);
-}
-
-
 /**
  * An extension of std::cout to redirect outputs to a log file for pcout.
  * To be honest, it's not a perfect implementation, but it's enough.
