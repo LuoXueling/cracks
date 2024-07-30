@@ -57151,6 +57151,13 @@
 28437,  1636,  1635, 28703, 28698
 28438, 28697, 28698, 28703, 28701
 28439, 28696, 28699, 28701, 28703
+*Nset, nset=Set-8, generate
+     1,  28704,      1
+*Elset, elset=Set-8, generate
+     1,  28439,      1
+** Section: Section-1
+*Solid Section, elset=Set-8, material=Material-1
+,
 *End Part
 **  
 **
@@ -57203,6 +57210,12 @@
 *Nset, nset=TIP, instance=Part-1-1
  16,
 *End Assembly
+** 
+** MATERIALS
+** 
+*Material, name=Material-1
+*Elastic
+2000., 0.3
 ** ----------------------------------------------------------------
 ** 
 ** STEP: Step-1
@@ -57215,9 +57228,11 @@
 ** 
 ** Name: BC-1 Type: Displacement/Rotation
 *Boundary
-Set-2, 2, 2, 1.
+Set-2, 1, 1
+Set-2, 2, 2, 0.0001
 ** Name: BC-2 Type: Displacement/Rotation
 *Boundary
+Set-3, 1, 1
 Set-3, 2, 2
 ** 
 ** OUTPUT REQUESTS

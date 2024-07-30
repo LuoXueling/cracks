@@ -125,7 +125,8 @@ void AbstractField<dim>::setup_system(Controller<dim> &ctl) {
       increment.reinit(locally_owned_dofs, ctl.mpi_com);
       system_rhs.reinit(locally_owned_dofs, ctl.mpi_com);
       solution = 0;
-
+      old_solution.reinit(locally_owned_dofs, locally_relevant_dofs, ctl.mpi_com);
+      old_solution = solution;
       // Initialize fields. Trilino does not allow writing into its parallel
       // vector.
       //    VectorTools::interpolate(dof_handler, ZeroFunction<dim>(dim),

@@ -138,9 +138,10 @@ template <int dim> void PhaseFieldFracture<dim>::run() {
       ctl.time += ctl.current_timestep;
     } while (true);
 
-//    LA::MPI::Vector distributed_solution(elasticity.locally_owned_dofs, ctl.mpi_com);
-//    distributed_solution = elasolution;
-//    elasticity.distribute_hanging_node_constraints(distributed_solution, ctl);
+    //    LA::MPI::Vector distributed_solution(elasticity.locally_owned_dofs,
+    //    ctl.mpi_com); distributed_solution = elasolution;
+    //    elasticity.distribute_hanging_node_constraints(distributed_solution,
+    //    ctl);
 
     // Refine mesh and return to the beginning if mesh is changed.
     //    if (ctl.params.refine) {
@@ -199,20 +200,41 @@ template <int dim> void PhaseFieldFracture<dim>::setup_system() {
 }
 
 template <int dim> void PhaseFieldFracture<dim>::refine_grid() {
-  //  ctl.timer.enter_subsection("Refine grid");
+  ctl.timer.enter_subsection("Refine grid");
   //  TimerOutput::Scope t(ctl.computing_timer, "Refine grid");
   //
   //  Vector<float>
   //  estimated_error_per_cell(ctl.triangulation.n_active_cells());
   //  KellyErrorEstimator<dim>::estimate(
-  //      dof_handler, QGauss<dim - 1>(fe.degree + 1),
+  //      elasticity.dof_handler, QGauss<dim - 1>(elasticity.fe.degree + 1),
   //      std::map<types::boundary_id, const Function<dim> *>(),
-  //      solution.block(0), estimated_error_per_cell);
+  //      elasticity.solution, estimated_error_per_cell);
   //  parallel::distributed::GridRefinement::refine_and_coarsen_fixed_number(
   //      ctl.triangulation, estimated_error_per_cell, 0.3, 0.03);
-  //  ctl.triangulation.execute_coarsening_and_refinement();
+  typename DoFHandler<dim>::active_cell_iterator cell =
+                                                     elasticity.dof_handler.begin_active(),
+                                                 endc = elasticity.dof_handler.end();
+  for (; cell != endc; ++cell)
+    if (cell->is_locally_owned())
+      cell->set_refine_flag();
+
+  parallel::distributed::SolutionTransfer<dim, LA::MPI::Vector> soltrans(
+      elasticity.dof_handler);
+
+  soltrans.prepare_for_coarsening_and_refinement(elasticity.solution);
+
+  ctl.triangulation.execute_coarsening_and_refinement();
+
+  setup_system();
+
+  LA::MPI::Vector interpolated_solution;
+  interpolated_solution.reinit(elasticity.locally_owned_dofs, ctl.mpi_com);
+  soltrans.interpolate(interpolated_solution);
+  elasticity.solution = interpolated_solution;
+  elasticity.record_old_solution(ctl);
   //
-  //  ctl.timer.leave_subsection();
+  //  ctl.triangulation.refine_global(1);
+  ctl.timer.leave_subsection();
 }
 
 template <int dim> void PhaseFieldFracture<dim>::output_results() {
