@@ -164,14 +164,14 @@ double AbstractField<dim>::newton_iteration(Controller<dim> &ctl) {
 
   ctl.pcout << "0\t" << std::scientific << newton_residual << std::endl;
 
-  while (newton_residual > (ctl.params).lower_bound_newton_residual &&
-         newton_step < (ctl.params).max_no_newton_steps) {
+  while (newton_residual > ctl.params.lower_bound_newton_residual &&
+         newton_step < ctl.params.max_no_newton_steps) {
     old_newton_residual = newton_residual;
 
     assemble_system(true, ctl);
     newton_residual = system_rhs.linfty_norm();
 
-    if (newton_residual < (ctl.params).lower_bound_newton_residual) {
+    if (newton_residual < ctl.params.lower_bound_newton_residual) {
       ctl.pcout << '\t' << std::scientific << newton_residual << std::endl;
       break;
     }
@@ -185,7 +185,7 @@ double AbstractField<dim>::newton_iteration(Controller<dim> &ctl) {
 
     line_search_step = 0;
     // Relaxation
-    for (; line_search_step < (ctl.params).max_no_line_search_steps;
+    for (; line_search_step < ctl.params.max_no_line_search_steps;
          ++line_search_step) {
       distributed_solution -= increment;
       distribute_all_constraints(distributed_solution, ctl);
@@ -200,7 +200,7 @@ double AbstractField<dim>::newton_iteration(Controller<dim> &ctl) {
         solution = distributed_solution;
       }
 
-      increment *= (ctl.params).line_search_damping;
+      increment *= ctl.params.line_search_damping;
     }
     old_newton_residual = newton_residual;
     newton_residual = new_newton_residual;
@@ -222,7 +222,7 @@ double AbstractField<dim>::newton_iteration(Controller<dim> &ctl) {
     // Terminate if nothing is solved anymore. After this,
     // we cut the time step.
     if ((newton_residual / old_newton_residual >
-         (ctl.params).upper_newton_rho) &&
+         ctl.params.upper_newton_rho) &&
         (newton_step > 1)) {
       break;
     }
@@ -231,8 +231,8 @@ double AbstractField<dim>::newton_iteration(Controller<dim> &ctl) {
     newton_step++;
   }
 
-  if ((newton_residual > (ctl.params).lower_bound_newton_residual) &&
-      (newton_step == (ctl.params).max_no_newton_steps)) {
+  if ((newton_residual > ctl.params.lower_bound_newton_residual) &&
+      (newton_step == ctl.params.max_no_newton_steps)) {
     ctl.pcout << "Newton iteration did not converge in " << newton_step
               << " steps :-(" << std::endl;
     throw SolverControl::NoConvergence(0, 0);

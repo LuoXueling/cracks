@@ -11,6 +11,7 @@
 #include "dealii_includes.h"
 #include "dirichlet_boundary.h"
 #include "parameters.h"
+#include "post_processors.h"
 #include "utils.h"
 #include <fstream>
 #include <iostream>
@@ -28,12 +29,16 @@ public:
   void compute_load(Controller<dim> &ctl);
 
   ConstitutiveLaw<dim> constitutive_law;
+
+  StrainPostprocessor<dim> strain;
+  StressPostprocessor<dim> stress;
 };
 
 template <int dim>
 Elasticity<dim>::Elasticity(Controller<dim> &ctl)
     : AbstractField<dim>(ctl),
-      constitutive_law(ctl.params.E, ctl.params.v, ctl.params.plane_state) {}
+      constitutive_law(ctl.params.E, ctl.params.v, ctl.params.plane_state),
+      stress(constitutive_law) {}
 
 template <int dim>
 void Elasticity<dim>::setup_boundary_condition(Controller<dim> &ctl) {
@@ -47,13 +52,15 @@ void Elasticity<dim>::setup_boundary_condition(Controller<dim> &ctl) {
     }
   (this->constraints_all).clear();
   (this->constraints_all).reinit((this->locally_relevant_dofs));
-  (this->constraints_all).merge((this->constraints_hanging_nodes),
-                        ConstraintMatrix::right_object_wins);
+  (this->constraints_all)
+      .merge((this->constraints_hanging_nodes),
+             ConstraintMatrix::right_object_wins);
   VectorTools::interpolate_boundary_values(
-      (this->dof_handler), 1, ZeroFunction<dim>(dim), (this->constraints_all), ComponentMask());
-  VectorTools::interpolate_boundary_values(
-      (this->dof_handler), 2, IncrementalBoundaryValues<dim>(ctl.time), (this->constraints_all),
+      (this->dof_handler), 1, ZeroFunction<dim>(dim), (this->constraints_all),
       ComponentMask());
+  VectorTools::interpolate_boundary_values(
+      (this->dof_handler), 2, IncrementalBoundaryValues<dim>(ctl.time),
+      (this->constraints_all), ComponentMask());
   (this->constraints_all).close();
 }
 
@@ -116,7 +123,8 @@ void Elasticity<dim>::assemble_system(bool residual_only,
                                 2 * constitutive_law.mu * E;
 
         for (unsigned int i = 0; i < dofs_per_cell; ++i) {
-          const unsigned int comp_i = (this->fe).system_to_component_index(i).first;
+          const unsigned int comp_i =
+              (this->fe).system_to_component_index(i).first;
           const Tensor<2, dim> Bu_iq_symmetric =
               0.5 * (Bu_kq[i] + transpose(Bu_kq[i]));
           const double Bu_iq_symmetric_tr = trace(Bu_iq_symmetric);
@@ -124,7 +132,8 @@ void Elasticity<dim>::assemble_system(bool residual_only,
           if (!residual_only) {
 
             for (unsigned int j = 0; j < dofs_per_cell; ++j) {
-              const unsigned int comp_j = (this->fe).system_to_component_index(j).first;
+              const unsigned int comp_j =
+                  (this->fe).system_to_component_index(j).first;
               {
                 cell_matrix(i, j) +=
                     (scalar_product(constitutive_law.lambda *
@@ -143,13 +152,16 @@ void Elasticity<dim>::assemble_system(bool residual_only,
 
       cell->get_dof_indices(local_dof_indices);
       if (residual_only) {
-        (this->constraints_all).distribute_local_to_global(cell_rhs, local_dof_indices,
-                                                   (this->system_rhs));
+        (this->constraints_all)
+            .distribute_local_to_global(cell_rhs, local_dof_indices,
+                                        (this->system_rhs));
       } else {
-        (this->constraints_all).distribute_local_to_global(
-            cell_matrix, local_dof_indices, (this->system_matrix));
-        (this->constraints_all).distribute_local_to_global(cell_rhs, local_dof_indices,
-                                                   (this->system_rhs));
+        (this->constraints_all)
+            .distribute_local_to_global(cell_matrix, local_dof_indices,
+                                        (this->system_matrix));
+        (this->constraints_all)
+            .distribute_local_to_global(cell_rhs, local_dof_indices,
+                                        (this->system_rhs));
       }
     }
 
@@ -172,20 +184,23 @@ template <int dim> unsigned int Elasticity<dim>::solve(Controller<dim> &ctl) {
     (this->preconditioner).initialize((this->system_matrix), data);
   }
 
-  solver.solve((this->system_matrix), (this->increment), (this->system_rhs), (this->preconditioner));
+  solver.solve((this->system_matrix), (this->increment), (this->system_rhs),
+               (this->preconditioner));
 }
 
 template <int dim>
 void Elasticity<dim>::output_results(DataOut<dim> &data_out,
                                      Controller<dim> &ctl) {
-  std::vector<std::string> solution_names(dim, "displacement");
+  std::vector<std::string> solution_names(dim, "Displacement");
 
   std::vector<DataComponentInterpretation::DataComponentInterpretation>
       data_component_interpretation(
           dim, DataComponentInterpretation::component_is_part_of_vector);
-  data_out.add_data_vector((this->dof_handler), (this->solution), solution_names,
-                           data_component_interpretation);
+  data_out.add_data_vector((this->dof_handler), (this->solution),
+                           solution_names, data_component_interpretation);
 
+  data_out.add_data_vector((this->dof_handler), (this->solution), strain);
+  data_out.add_data_vector((this->dof_handler), (this->solution), stress);
   // Record statistics
   compute_load(ctl);
 }
@@ -208,9 +223,10 @@ template <int dim> void Elasticity<dim>::compute_load(Controller<dim> &ctl) {
 
   const Tensor<2, dim> Identity = Tensors::get_Identity<dim>();
 
-  typename DoFHandler<dim>::active_cell_iterator cell =
-                                                     (this->dof_handler).begin_active(),
-                                                 endc = (this->dof_handler).end();
+  typename DoFHandler<dim>::active_cell_iterator cell = (this->dof_handler)
+                                                            .begin_active(),
+                                                 endc =
+                                                     (this->dof_handler).end();
 
   const FEValuesExtractors::Vector displacement(0);
 
