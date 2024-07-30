@@ -95,6 +95,7 @@ template <int dim> void PhaseFieldFracture<dim>::run() {
       // might not converge. To not abort the program we catch the
       // exception and retry with a smaller step.
       //          use_old_timestep_pf = false;
+      elasticity.record_old_solution(ctl);
       try {
         newton_reduction = elasticity.newton_iteration(ctl);
 
