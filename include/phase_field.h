@@ -5,9 +5,8 @@
 #ifndef CRACKS_PHASE_FIELD_H
 #define CRACKS_PHASE_FIELD_H
 
-#include "abaqus_grid_in.h"
-#include "constitutive_law.h"
 #include "dealii_includes.h"
+#include "constitutive_law.h"
 #include "dirichlet_boundary.h"
 #include "parameters.h"
 #include "utils.h"

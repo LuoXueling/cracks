@@ -5,10 +5,9 @@
 #ifndef CRACKS_ELASTICITY_H
 #define CRACKS_ELASTICITY_H
 
-#include "abaqus_grid_in.h"
+#include "dealii_includes.h"
 #include "abstract_field.h"
 #include "constitutive_law.h"
-#include "dealii_includes.h"
 #include "dirichlet_boundary.h"
 #include "parameters.h"
 #include "post_processors.h"

@@ -16568,6 +16568,28 @@
 8172, 1022, 1021, 8385, 8380
 8173, 8379, 8380, 8385, 8383
 8174, 8378, 8381, 8383, 8385
+*Nset, nset=Set-8, generate
+    1,  8386,     1
+*Elset, elset=Set-8, generate
+    1,  8174,     1
+*Elset, elset=_Surf-1_S4, internal, generate
+ 3617,  4933,    28
+*Elset, elset=_Surf-1_S2, internal
+ 6028, 6056, 6084, 6112, 6140, 6168, 6196, 6224, 6252, 6280, 6308, 6336, 6364, 6392, 6420, 6448
+ 6476, 6504, 6532, 6560, 6588, 6616, 6644, 6672, 6700, 6728, 6756, 6784, 7036, 7064, 7092, 7120
+*Surface, type=ELEMENT, name=Surf-1
+_Surf-1_S4, S4
+_Surf-1_S2, S2
+*Elset, elset=_Surf-2_S4, internal, generate
+   1,  869,   28
+*Elset, elset=_Surf-2_S2, internal, generate
+ 1036,  2352,    28
+*Surface, type=ELEMENT, name=Surf-2
+_Surf-2_S4, S4
+_Surf-2_S2, S2
+** Section: Section-1
+*Solid Section, elset=Set-8, material=Material-1
+,
 *End Part
 **  
 **
@@ -16620,6 +16642,12 @@
 *Nset, nset=TIP, instance=Part-1-1
  16,
 *End Assembly
+** 
+** MATERIALS
+** 
+*Material, name=Material-1
+*Elastic
+2000., 0.3
 ** ----------------------------------------------------------------
 ** 
 ** STEP: Step-1
@@ -16632,9 +16660,11 @@
 ** 
 ** Name: BC-1 Type: Displacement/Rotation
 *Boundary
-Set-2, 2, 2, 1.
+Set-2, 1, 1
+Set-2, 2, 2, 0.0001
 ** Name: BC-2 Type: Displacement/Rotation
 *Boundary
+Set-3, 1, 1
 Set-3, 2, 2
 ** 
 ** OUTPUT REQUESTS

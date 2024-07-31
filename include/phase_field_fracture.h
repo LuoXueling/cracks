@@ -6,10 +6,9 @@
 #ifndef PHASE_FIELD_FRACTURE_H
 #define PHASE_FIELD_FRACTURE_H
 
-#include "abaqus_grid_in.h"
+#include "dealii_includes.h"
 #include "abstract_field.h"
 #include "controller.h"
-#include "dealii_includes.h"
 #include "elasticity.h"
 #include "parameters.h"
 #include "utils.h"
@@ -174,7 +173,7 @@ template <int dim> void PhaseFieldFracture<dim>::run() {
 }
 
 template <int dim> void PhaseFieldFracture<dim>::setup_mesh() {
-  AbaqusGridIn<dim> grid_in;
+  GridIn<dim> grid_in;
   /**
    * similar to normal use of GridIn.
    */
@@ -182,7 +181,13 @@ template <int dim> void PhaseFieldFracture<dim>::setup_mesh() {
   if (!checkFileExsit(ctl.params.mesh_from)) {
     throw std::runtime_error("Mesh file does not exist");
   }
-  grid_in.read_abaqus_inp(ctl.params.mesh_from);
+  std::filebuf fb;
+  if (fb.open (ctl.params.mesh_from,std::ios::in))
+  {
+    std::istream is(&fb);
+    grid_in.read_abaqus(is);
+    fb.close();
+  }
   //  GridGenerator::hyper_cube(ctl.triangulation);
   //  ctl.triangulation.refine_global(5);
 
@@ -191,6 +196,9 @@ template <int dim> void PhaseFieldFracture<dim>::setup_mesh() {
     GridOut grid_out;
     grid_out.write_svg(ctl.triangulation, out);
   }
+
+//  std::tuple<std::vector<Point<dim>>, std::vector<CellData<dim>>, SubCellData> info;
+//  info = GridTools::get_coarse_mesh_description(ctl.triangulation);
   ctl.dcout << "Find " << ctl.triangulation.n_global_active_cells()
             << " elements" << std::endl;
 }

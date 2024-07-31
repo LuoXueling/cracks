@@ -5,8 +5,8 @@
 #ifndef CRACKS_ABSTRACT_FIELD_H
 #define CRACKS_ABSTRACT_FIELD_H
 
-#include "controller.h"
 #include "dealii_includes.h"
+#include "controller.h"
 
 template <int dim> class AbstractField {
 public:

@@ -57155,6 +57155,21 @@
      1,  28704,      1
 *Elset, elset=Set-8, generate
      1,  28439,      1
+*Elset, elset=_Surf-1_S4, internal, generate
+ 12177,  13493,     28
+*Elset, elset=_Surf-1_S2, internal
+ 23148, 23176, 23204, 23232, 23260, 23288, 23316, 23344, 23372, 23400, 23428, 23456, 23484, 23512, 23540, 23568
+ 23596, 23624, 23652, 23680, 23708, 23736, 23764, 23792, 23820, 23848, 23876, 23904, 24156, 24184, 24212, 24240
+*Surface, type=ELEMENT, name=Surf-1
+_Surf-1_S4, S4
+_Surf-1_S2, S2
+*Elset, elset=_Surf-2_S4, internal, generate
+   1,  869,   28
+*Elset, elset=_Surf-2_S2, internal, generate
+ 1036,  2352,    28
+*Surface, type=ELEMENT, name=Surf-2
+_Surf-2_S4, S4
+_Surf-2_S2, S2
 ** Section: Section-1
 *Solid Section, elset=Set-8, material=Material-1
 ,
