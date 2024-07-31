@@ -7,7 +7,6 @@
 
 #include "dealii_includes.h"
 #include "parameters.h"
-#include "solution_communicator.h"
 #include "utils.h"
 
 template <int dim> class Controller {
@@ -31,7 +30,6 @@ public:
 
   TableHandler statistics;
 
-  SolutionCommunicator<dim> sol_com;
 };
 
 template <int dim>

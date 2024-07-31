@@ -10,7 +10,6 @@
 #include "controller.h"
 #include "dealii_includes.h"
 #include "elasticity.h"
-#include "solution_communicator.h"
 #include "parameters.h"
 #include "utils.h"
 #include <fstream>
@@ -58,7 +57,6 @@ template <int dim> void PhaseFieldFracture<dim>::run() {
 
   ctl.timer.enter_subsection("Initialize system");
   setup_system();
-  ctl.sol_com.register_solution("Elasticity", &elasticity.solution);
   ctl.timer.leave_subsection("Initialize system");
 
   //  if (ctl.params.enable_phase_field) {
