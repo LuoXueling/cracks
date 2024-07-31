@@ -24,18 +24,18 @@ public:
   virtual void output_results(DataOut<dim> &data_out, Controller<dim> &ctl) {
     AssertThrow(false, ExcNotImplemented())
   };
-  void define_boundary_condition(std::string boundary_from,
+  virtual void define_boundary_condition(std::string boundary_from,
                                  Controller<dim> &ctl);
-  void setup_boundary_condition(Controller<dim> &ctl);
-  void setup_system(Controller<dim> &ctl);
-  void record_old_solution(Controller<dim> &ctl);
-  void return_old_solution(Controller<dim> &ctl);
-  void distribute_hanging_node_constraints(LA::MPI::Vector &vector,
+  virtual void setup_boundary_condition(Controller<dim> &ctl);
+  virtual void setup_system(Controller<dim> &ctl);
+  virtual void record_old_solution(Controller<dim> &ctl);
+  virtual void return_old_solution(Controller<dim> &ctl);
+  virtual void distribute_hanging_node_constraints(LA::MPI::Vector &vector,
                                            Controller<dim> &ctl);
-  void distribute_all_constraints(LA::MPI::Vector &vector,
+  virtual void distribute_all_constraints(LA::MPI::Vector &vector,
                                   Controller<dim> &ctl);
 
-  double newton_iteration(Controller<dim> &ctl);
+  virtual double newton_iteration(Controller<dim> &ctl);
 
   /*
    * Preconditioners
