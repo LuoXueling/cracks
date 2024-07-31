@@ -147,7 +147,7 @@ void PhaseField<dim>::output_results(DataOut<dim> &data_out,
                                      Controller<dim> &ctl) {
 
   data_out.add_data_vector((this->dof_handler), (this->solution),
-                           "Phase field");
+                           "Phase_field");
 }
 
 template <int dim>
