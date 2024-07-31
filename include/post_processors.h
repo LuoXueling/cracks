@@ -5,8 +5,8 @@
 #ifndef CRACKS_POST_PROCESSORS_H
 #define CRACKS_POST_PROCESSORS_H
 
-#include "dealii_includes.h"
 #include "constitutive_law.h"
+#include "dealii_includes.h"
 #include "utils.h"
 
 template <int dim>
@@ -71,6 +71,5 @@ public:
     }
   }
 };
-
 
 #endif // CRACKS_POST_PROCESSORS_H

@@ -94,8 +94,7 @@ inline Tensor<1, dim> get_u_LinU(const Tensor<1, dim> &phi_i_u) {
 
 template <int dim>
 SymmetricTensor<4, dim> get_stress_strain_tensor(const double lambda,
-                                                 const double mu)
-{
+                                                 const double mu) {
   SymmetricTensor<4, dim> tmp;
   for (unsigned int i = 0; i < dim; ++i)
     for (unsigned int j = 0; j < dim; ++j)
@@ -107,12 +106,10 @@ SymmetricTensor<4, dim> get_stress_strain_tensor(const double lambda,
   return tmp;
 }
 
-
 template <int dim>
 inline SymmetricTensor<2, dim> get_strain(const FEValues<dim> &fe_values,
-                                          const unsigned int   shape_func,
-                                          const unsigned int   q_point)
-{
+                                          const unsigned int shape_func,
+                                          const unsigned int q_point) {
   SymmetricTensor<2, dim> tmp;
 
   for (unsigned int i = 0; i < dim; ++i)
@@ -120,19 +117,16 @@ inline SymmetricTensor<2, dim> get_strain(const FEValues<dim> &fe_values,
 
   for (unsigned int i = 0; i < dim; ++i)
     for (unsigned int j = i + 1; j < dim; ++j)
-      tmp[i][j] =
-          (fe_values.shape_grad_component(shape_func, q_point, i)[j] +
-           fe_values.shape_grad_component(shape_func, q_point, j)[i]) /
-          2;
+      tmp[i][j] = (fe_values.shape_grad_component(shape_func, q_point, i)[j] +
+                   fe_values.shape_grad_component(shape_func, q_point, j)[i]) /
+                  2;
 
   return tmp;
 }
 
-
 template <int dim>
 inline SymmetricTensor<2, dim>
-get_strain(const std::vector<Tensor<1, dim>> &grad)
-{
+get_strain(const std::vector<Tensor<1, dim>> &grad) {
   Assert(grad.size() == dim, ExcInternalError());
 
   SymmetricTensor<2, dim> strain;

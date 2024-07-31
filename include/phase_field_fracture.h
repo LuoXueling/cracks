@@ -6,9 +6,9 @@
 #ifndef PHASE_FIELD_FRACTURE_H
 #define PHASE_FIELD_FRACTURE_H
 
-#include "dealii_includes.h"
 #include "abstract_field.h"
 #include "controller.h"
+#include "dealii_includes.h"
 #include "elasticity.h"
 #include "parameters.h"
 #include "utils.h"
@@ -35,7 +35,7 @@ private:
 
 template <int dim>
 PhaseFieldFracture<dim>::PhaseFieldFracture(Parameters::AllParameters &prms)
-    : ctl(prms), elasticity(ctl) {}
+    : ctl(prms), elasticity(dim, ctl.params.boundary_from, ctl) {}
 
 template <int dim> void PhaseFieldFracture<dim>::run() {
   ctl.dcout << "Project: " << ctl.params.project_name << std::endl;
@@ -182,8 +182,7 @@ template <int dim> void PhaseFieldFracture<dim>::setup_mesh() {
     throw std::runtime_error("Mesh file does not exist");
   }
   std::filebuf fb;
-  if (fb.open (ctl.params.mesh_from,std::ios::in))
-  {
+  if (fb.open(ctl.params.mesh_from, std::ios::in)) {
     std::istream is(&fb);
     grid_in.read_abaqus(is);
     fb.close();
@@ -197,8 +196,9 @@ template <int dim> void PhaseFieldFracture<dim>::setup_mesh() {
     grid_out.write_svg(ctl.triangulation, out);
   }
 
-//  std::tuple<std::vector<Point<dim>>, std::vector<CellData<dim>>, SubCellData> info;
-//  info = GridTools::get_coarse_mesh_description(ctl.triangulation);
+  //  std::tuple<std::vector<Point<dim>>, std::vector<CellData<dim>>,
+  //  SubCellData> info; info =
+  //  GridTools::get_coarse_mesh_description(ctl.triangulation);
   ctl.dcout << "Find " << ctl.triangulation.n_global_active_cells()
             << " elements" << std::endl;
 }
@@ -219,9 +219,9 @@ template <int dim> void PhaseFieldFracture<dim>::refine_grid() {
   //      elasticity.solution, estimated_error_per_cell);
   //  parallel::distributed::GridRefinement::refine_and_coarsen_fixed_number(
   //      ctl.triangulation, estimated_error_per_cell, 0.3, 0.03);
-  typename DoFHandler<dim>::active_cell_iterator cell =
-                                                     elasticity.dof_handler.begin_active(),
-                                                 endc = elasticity.dof_handler.end();
+  typename DoFHandler<dim>::active_cell_iterator
+      cell = elasticity.dof_handler.begin_active(),
+      endc = elasticity.dof_handler.end();
   for (; cell != endc; ++cell)
     if (cell->is_locally_owned())
       cell->set_refine_flag();

@@ -1,6 +1,7 @@
 subsection Project
   set Project name = test
   set Mesh from = ../meshes/singleNotchCoarse.inp
+  set Boundary from = ../meshes/singleNotch_boundary.txt
   set Load sequence from = script
   set Enable phase field = true
 end

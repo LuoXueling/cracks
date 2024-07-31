@@ -5,16 +5,16 @@
 #ifndef CRACKS_ABSTRACT_FIELD_H
 #define CRACKS_ABSTRACT_FIELD_H
 
-#include "dealii_includes.h"
+#include "boundary.h"
 #include "controller.h"
+#include "dealii_includes.h"
+#include <typeinfo>
 
 template <int dim> class AbstractField {
 public:
-  explicit AbstractField(Controller<dim> &ctl);
+  AbstractField(unsigned int n_components, std::string &boundary_from,
+                Controller<dim> &ctl);
 
-  virtual void setup_boundary_condition(Controller<dim> &ctl) {
-    AssertThrow(false, ExcNotImplemented())
-  };
   virtual void assemble_system(bool residual_only, Controller<dim> &ctl) {
     AssertThrow(false, ExcNotImplemented())
   };
@@ -24,14 +24,16 @@ public:
   virtual void output_results(DataOut<dim> &data_out, Controller<dim> &ctl) {
     AssertThrow(false, ExcNotImplemented())
   };
-
+  void define_boundary_condition(std::string boundary_from,
+                                 Controller<dim> &ctl);
+  void setup_boundary_condition(Controller<dim> &ctl);
   void setup_system(Controller<dim> &ctl);
   void record_old_solution(Controller<dim> &ctl);
   void return_old_solution(Controller<dim> &ctl);
   void distribute_hanging_node_constraints(LA::MPI::Vector &vector,
-                                                   Controller<dim> &ctl);
+                                           Controller<dim> &ctl);
   void distribute_all_constraints(LA::MPI::Vector &vector,
-                                          Controller<dim> &ctl);
+                                  Controller<dim> &ctl);
 
   double newton_iteration(Controller<dim> &ctl);
 
@@ -52,6 +54,10 @@ public:
   AffineConstraints<double> constraints_hanging_nodes;
   AffineConstraints<double> constraints_all;
 
+  std::vector<ComponentMask> component_masks;
+  std::vector<std::tuple<unsigned int, std::string, unsigned int, double>>
+      boundary_info;
+
   /*
    * Solutions
    */
@@ -64,75 +70,127 @@ public:
 };
 
 template <int dim>
-AbstractField<dim>::AbstractField(Controller<dim> &ctl)
-    : fe(FE_Q<dim>(ctl.params.poly_degree), dim),
-      quadrature_formula(fe.degree + 1), dof_handler(ctl.triangulation) {}
+AbstractField<dim>::AbstractField(const unsigned int n_components,
+                                  std::string &boundary_from,
+                                  Controller<dim> &ctl)
+    : fe(FE_Q<dim>(ctl.params.poly_degree), n_components),
+      quadrature_formula(fe.degree + 1), dof_handler(ctl.triangulation) {
+  for (unsigned int d = 0; d < n_components; ++d) {
+    component_masks.push_back(ComponentMask(n_components, false));
+    component_masks[d].set(d, true);
+  }
+  define_boundary_condition(boundary_from, ctl);
+}
 
-template <int dim>
-void AbstractField<dim>::setup_system(Controller<dim> &ctl) {
-    system_matrix.clear();
-    /**
+template <int dim> void AbstractField<dim>::setup_system(Controller<dim> &ctl) {
+  system_matrix.clear();
+  /**
    * DOF
    **/
-    {
-      dof_handler.distribute_dofs(fe);
-      locally_owned_dofs = dof_handler.locally_owned_dofs();
-      DoFTools::extract_locally_relevant_dofs(dof_handler, locally_relevant_dofs);
-      constant_modes.clear();
-      DoFTools::extract_constant_modes(dof_handler, ComponentMask(),
-                                       constant_modes);
-    }
-    /**
+  {
+    dof_handler.distribute_dofs(fe);
+    locally_owned_dofs = dof_handler.locally_owned_dofs();
+    DoFTools::extract_locally_relevant_dofs(dof_handler, locally_relevant_dofs);
+    constant_modes.clear();
+    DoFTools::extract_constant_modes(dof_handler, ComponentMask(),
+                                     constant_modes);
+  }
+  /**
    * Hanging node and boundary value constraints
-     */
-    {
-      constraints_hanging_nodes.clear();
-      constraints_hanging_nodes.reinit(locally_relevant_dofs);
-      DoFTools::make_hanging_node_constraints(dof_handler,
-                                              constraints_hanging_nodes);
-      constraints_hanging_nodes.close();
-      
-      constraints_all.clear();
-      constraints_all.reinit(locally_relevant_dofs);
-      setup_boundary_condition(ctl);
-      constraints_all.close();
-    }
+   */
+  {
+    constraints_hanging_nodes.clear();
+    constraints_hanging_nodes.reinit(locally_relevant_dofs);
+    DoFTools::make_hanging_node_constraints(dof_handler,
+                                            constraints_hanging_nodes);
+    constraints_hanging_nodes.close();
 
-    /**
+    constraints_all.clear();
+    constraints_all.reinit(locally_relevant_dofs);
+    setup_boundary_condition(ctl);
+    constraints_all.close();
+  }
+
+  /**
    * Sparsity pattern
-     */
-    {
-      DynamicSparsityPattern sparsity_pattern(locally_relevant_dofs);
-      DoFTools::make_sparsity_pattern(dof_handler, sparsity_pattern,
-                                      constraints_all,
-                                      /*keep constrained dofs*/ false);
-      SparsityTools::distribute_sparsity_pattern(sparsity_pattern,
-                                                 locally_owned_dofs, ctl.mpi_com,
-                                                 locally_relevant_dofs);
-      sparsity_pattern.compress();
-      system_matrix.reinit(locally_owned_dofs, locally_owned_dofs,
-                                   sparsity_pattern, ctl.mpi_com);
-    }
+   */
+  {
+    DynamicSparsityPattern sparsity_pattern(locally_relevant_dofs);
+    DoFTools::make_sparsity_pattern(dof_handler, sparsity_pattern,
+                                    constraints_all,
+                                    /*keep constrained dofs*/ false);
+    SparsityTools::distribute_sparsity_pattern(sparsity_pattern,
+                                               locally_owned_dofs, ctl.mpi_com,
+                                               locally_relevant_dofs);
+    sparsity_pattern.compress();
+    system_matrix.reinit(locally_owned_dofs, locally_owned_dofs,
+                         sparsity_pattern, ctl.mpi_com);
+  }
 
-    /**
+  /**
    * Initialize solution
-     */
-    {
-      // solution has ghost elements.
-      solution.reinit(locally_owned_dofs, locally_relevant_dofs, ctl.mpi_com);
-      // system_rhs, system_matrix, and the solution vector increment do not have
-      // ghost elements
-      increment.reinit(locally_owned_dofs, ctl.mpi_com);
-      system_rhs.reinit(locally_owned_dofs, ctl.mpi_com);
-      solution = 0;
-      old_solution.reinit(locally_owned_dofs, locally_relevant_dofs, ctl.mpi_com);
-      old_solution = solution;
-      // Initialize fields. Trilino does not allow writing into its parallel
-      // vector.
-      //    VectorTools::interpolate(dof_handler, ZeroFunction<dim>(dim),
-      //                             solution);
-    }
+   */
+  {
+    // solution has ghost elements.
+    solution.reinit(locally_owned_dofs, locally_relevant_dofs, ctl.mpi_com);
+    // system_rhs, system_matrix, and the solution vector increment do not have
+    // ghost elements
+    increment.reinit(locally_owned_dofs, ctl.mpi_com);
+    system_rhs.reinit(locally_owned_dofs, ctl.mpi_com);
+    solution = 0;
+    old_solution.reinit(locally_owned_dofs, locally_relevant_dofs, ctl.mpi_com);
+    old_solution = solution;
+    // Initialize fields. Trilino does not allow writing into its parallel
+    // vector.
+    //    VectorTools::interpolate(dof_handler, ZeroFunction<dim>(dim),
+    //                             solution);
+  }
+}
 
+template <int dim>
+void AbstractField<dim>::define_boundary_condition(
+    const std::string boundary_from, Controller<dim> &ctl) {
+  if (boundary_from == "none") {
+    return;
+  }
+  std::filebuf fb;
+  if (fb.open(boundary_from, std::ios::in)) {
+    std::istream is(&fb);
+    std::string line;
+    unsigned int boundary_id, constrained_dof;
+    std::string constraint_type;
+    double constraint_value;
+    while (std::getline(is, line)) {
+      if (line[0] == '#') {
+        continue;
+      }
+      std::istringstream iss(line);
+      iss >> boundary_id >> constraint_type >> constrained_dof >>
+          constraint_value;
+      std::tuple<unsigned int, std::string, unsigned int, double> info(
+          boundary_id, constraint_type, constrained_dof, constraint_value);
+      boundary_info.push_back(info);
+    }
+    fb.close();
+  }
+}
+
+template <int dim>
+void AbstractField<dim>::setup_boundary_condition(Controller<dim> &ctl) {
+  constraints_all.clear();
+  constraints_all.reinit(locally_relevant_dofs);
+  constraints_all.merge(constraints_hanging_nodes,
+                        ConstraintMatrix::right_object_wins);
+  for (const std::tuple<unsigned int, std::string, unsigned int, double> &info :
+       boundary_info) {
+    if (std::get<1>(info) == "value") {
+      VectorTools::interpolate_boundary_values(
+          dof_handler, std::get<0>(info),
+          DisplacementBoundary<dim>(ctl.time, std::get<3>(info)),
+          constraints_all, component_masks[std::get<2>(info)]);
+    }
+  }
+  constraints_all.close();
 }
 
 template <int dim>
@@ -222,8 +280,7 @@ double AbstractField<dim>::newton_iteration(Controller<dim> &ctl) {
 
     // Terminate if nothing is solved anymore. After this,
     // we cut the time step.
-    if ((newton_residual / old_newton_residual >
-         ctl.params.upper_newton_rho) &&
+    if ((newton_residual / old_newton_residual > ctl.params.upper_newton_rho) &&
         (newton_step > 1)) {
       break;
     }
@@ -261,7 +318,7 @@ void AbstractField<dim>::distribute_hanging_node_constraints(
 
 template <int dim>
 void AbstractField<dim>::distribute_all_constraints(LA::MPI::Vector &vector,
-                                                 Controller<dim> &ctl) {
+                                                    Controller<dim> &ctl) {
   constraints_all.distribute(vector);
 }
 

@@ -5,10 +5,9 @@
 #ifndef CRACKS_ELASTICITY_H
 #define CRACKS_ELASTICITY_H
 
-#include "dealii_includes.h"
 #include "abstract_field.h"
 #include "constitutive_law.h"
-#include "dirichlet_boundary.h"
+#include "dealii_includes.h"
 #include "parameters.h"
 #include "post_processors.h"
 #include "utils.h"
@@ -18,9 +17,9 @@ using namespace dealii;
 
 template <int dim> class Elasticity : public AbstractField<dim> {
 public:
-  Elasticity(Controller<dim> &ctl);
+  Elasticity(unsigned int n_components, std::string &boundary_from,
+             Controller<dim> &ctl);
 
-  void setup_boundary_condition(Controller<dim> &ctl) override;
   void assemble_system(bool residual_only, Controller<dim> &ctl) override;
   unsigned int solve(Controller<dim> &ctl) override;
   void output_results(DataOut<dim> &data_out, Controller<dim> &ctl) override;
@@ -34,34 +33,11 @@ public:
 };
 
 template <int dim>
-Elasticity<dim>::Elasticity(Controller<dim> &ctl)
-    : AbstractField<dim>(ctl),
+Elasticity<dim>::Elasticity(const unsigned int n_components,
+                            std::string &boundary_from, Controller<dim> &ctl)
+    : AbstractField<dim>(n_components, boundary_from, ctl),
       constitutive_law(ctl.params.E, ctl.params.v, ctl.params.plane_state),
       stress(constitutive_law) {}
-
-template <int dim>
-void Elasticity<dim>::setup_boundary_condition(Controller<dim> &ctl) {
-  for (auto &face : ctl.triangulation.active_face_iterators())
-    if (face->at_boundary()) {
-      if (face->center()[1] <= 0.0) {
-        face->set_boundary_id(1);
-      } else if (face->center()[1] >= 1.0) {
-        face->set_boundary_id(2);
-      }
-    }
-  (this->constraints_all).clear();
-  (this->constraints_all).reinit((this->locally_relevant_dofs));
-  (this->constraints_all)
-      .merge((this->constraints_hanging_nodes),
-             ConstraintMatrix::right_object_wins);
-  VectorTools::interpolate_boundary_values(
-      (this->dof_handler), 1, ZeroFunction<dim>(dim), (this->constraints_all),
-      ComponentMask());
-  VectorTools::interpolate_boundary_values(
-      (this->dof_handler), 2, IncrementalBoundaryValues<dim>(ctl.time),
-      (this->constraints_all), ComponentMask());
-  (this->constraints_all).close();
-}
 
 template <int dim>
 void Elasticity<dim>::assemble_system(bool residual_only,

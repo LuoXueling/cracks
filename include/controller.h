@@ -6,8 +6,8 @@
 #define CRACKS_CONTROLLER_H
 
 #include "dealii_includes.h"
-#include "utils.h"
 #include "parameters.h"
+#include "utils.h"
 
 template <int dim> class Controller {
 public:

@@ -12,6 +12,7 @@
 namespace Parameters {
 struct Project {
   std::string mesh_from;
+  std::string boundary_from;
   std::string project_name;
   std::string load_sequence_from;
   bool enable_phase_field;
@@ -26,6 +27,8 @@ void Project::declare_parameters(ParameterHandler &prm) {
   {
     prm.declare_entry("Mesh from", "script",
                       Patterns::FileName(Patterns::FileName::FileType::input));
+    prm.declare_entry("Boundary from", "none",
+                      Patterns::FileName(Patterns::FileName::FileType::input));
     prm.declare_entry("Project name", "Default project",
                       Patterns::FileName(Patterns::FileName::FileType::output));
     prm.declare_entry("Load sequence from", "script",
@@ -39,6 +42,7 @@ void Project::parse_parameters(ParameterHandler &prm) {
   prm.enter_subsection("Project");
   {
     mesh_from = prm.get("Mesh from");
+    boundary_from = prm.get("Boundary from");
     project_name = prm.get("Project name");
     load_sequence_from = prm.get("Load sequence from");
     enable_phase_field = prm.get_bool("Enable phase field");
@@ -167,7 +171,8 @@ void Material::declare_parameters(ParameterHandler &prm) {
     prm.declare_entry("Poisson's ratio", "0.3", Patterns::Double(0, 0.5));
     prm.declare_entry("Critical energy release rate", "1", Patterns::Double(0));
     prm.declare_entry("Phase field length scale", "0.01", Patterns::Double(0));
-    prm.declare_entry("Plane state", "stress", Patterns::Selection("stress|strain"));
+    prm.declare_entry("Plane state", "stress",
+                      Patterns::Selection("stress|strain"));
   }
   prm.leave_subsection();
 }
