@@ -123,6 +123,14 @@ void Elasticity<dim>::assemble_system(bool residual_only,
 
           cell_rhs(i) += (scalar_product(Bu_kq[i], stress) * fe_values.JxW(q));
         }
+
+        // Update history
+        const std::vector<std::shared_ptr<PointHistory>> lqph =
+            ctl.quadrature_point_history.get_data(cell);
+
+        lqph[q]->update("Driving force",
+                        std::max(lqph[q]->get("Driving force"),
+                                 0.5 * scalar_product(stress, E)));
       }
 
       cell->get_dof_indices(local_dof_indices);

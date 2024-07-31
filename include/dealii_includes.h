@@ -17,6 +17,7 @@
 #include <deal.II/base/tensor.h>
 #include <deal.II/base/timer.h>
 #include <deal.II/base/utilities.h>
+#include <deal.II/base/quadrature_point_data.h>
 
 #include <deal.II/lac/block_sparse_matrix.h>
 #include <deal.II/lac/block_vector.h>

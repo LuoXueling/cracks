@@ -25,17 +25,22 @@ public:
     AssertThrow(false, ExcNotImplemented())
   };
   virtual void define_boundary_condition(std::string boundary_from,
-                                 Controller<dim> &ctl);
+                                         Controller<dim> &ctl);
   virtual void setup_boundary_condition(Controller<dim> &ctl);
   virtual void setup_system(Controller<dim> &ctl);
   virtual void record_old_solution(Controller<dim> &ctl);
   virtual void return_old_solution(Controller<dim> &ctl);
   virtual void distribute_hanging_node_constraints(LA::MPI::Vector &vector,
-                                           Controller<dim> &ctl);
+                                                   Controller<dim> &ctl);
   virtual void distribute_all_constraints(LA::MPI::Vector &vector,
-                                  Controller<dim> &ctl);
+                                          Controller<dim> &ctl);
 
   virtual double newton_iteration(Controller<dim> &ctl);
+  parallel::distributed::SolutionTransfer<dim, LA::MPI::Vector>
+  prepare_refine();
+  void post_refine(
+      parallel::distributed::SolutionTransfer<dim, LA::MPI::Vector> &soltrans,
+      Controller<dim> &ctl);
 
   /*
    * Preconditioners
@@ -319,6 +324,26 @@ template <int dim>
 void AbstractField<dim>::distribute_all_constraints(LA::MPI::Vector &vector,
                                                     Controller<dim> &ctl) {
   constraints_all.distribute(vector);
+}
+
+template <int dim>
+parallel::distributed::SolutionTransfer<dim, LA::MPI::Vector>
+AbstractField<dim>::prepare_refine() {
+  static parallel::distributed::SolutionTransfer<dim, LA::MPI::Vector> soltrans(
+      dof_handler);
+  soltrans.prepare_for_coarsening_and_refinement(solution);
+  return soltrans;
+}
+
+template <int dim>
+void AbstractField<dim>::post_refine(
+    parallel::distributed::SolutionTransfer<dim, LA::MPI::Vector> &soltrans,
+    Controller<dim> &ctl) {
+  LA::MPI::Vector interpolated_solution;
+  interpolated_solution.reinit(locally_owned_dofs, ctl.mpi_com);
+  soltrans.interpolate(interpolated_solution);
+  solution = interpolated_solution;
+  record_old_solution(ctl);
 }
 
 #endif // CRACKS_ABSTRACT_FIELD_H

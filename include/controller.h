@@ -9,6 +9,17 @@
 #include "parameters.h"
 #include "utils.h"
 
+class PointHistory {
+public:
+  void update(std::string name, double solution) {
+    solution_dict[name] = solution;
+  };
+  double get(std::string name) { return solution_dict[name]; };
+
+private:
+  std::map<std::string, double> solution_dict;
+};
+
 template <int dim> class Controller {
 public:
   explicit Controller(Parameters::AllParameters &prms);
@@ -31,6 +42,8 @@ public:
 
   TableHandler statistics;
 
+  CellDataStorage<typename Triangulation<dim>::cell_iterator, PointHistory>
+      quadrature_point_history;
 };
 
 template <int dim>
