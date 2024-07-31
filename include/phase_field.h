@@ -23,7 +23,7 @@ public:
   unsigned int solve(Controller<dim> &ctl) override;
   void output_results(DataOut<dim> &data_out, Controller<dim> &ctl) override;
 
-  void enforce_phase_field_limitation();
+  void enforce_phase_field_limitation(Controller<dim> &ctl);
 };
 
 template <int dim>
@@ -151,10 +151,13 @@ void PhaseField<dim>::output_results(DataOut<dim> &data_out,
 }
 
 template <int dim>
-void PhaseField<dim>::enforce_phase_field_limitation() {
+void PhaseField<dim>::enforce_phase_field_limitation(Controller<dim> &ctl) {
   typename DoFHandler<dim>::active_cell_iterator cell = (this->dof_handler)
                                                             .begin_active(),
                                                  endc = (this->dof_handler).end();
+
+  LA::MPI::Vector distributed_solution(this->locally_owned_dofs, ctl.mpi_com);
+  distributed_solution = this->solution;
 
   std::vector<types::global_dof_index> local_dof_indices((this->fe).dofs_per_cell);
   for (; cell != endc; ++cell)
@@ -165,12 +168,13 @@ void PhaseField<dim>::enforce_phase_field_limitation() {
         if (!(this->dof_handler).locally_owned_dofs().is_element(idx))
           continue;
 
-        (this->solution)(idx) = std::max(
+        distributed_solution(idx) = std::max(
             0.0, std::min(static_cast<double>((this->solution)(idx)), 1.0));
       }
     }
 
-  (this->solution).compress(VectorOperation::insert);
+  distributed_solution.compress(VectorOperation::insert);
+  this->solution = distributed_solution;
 }
 
 #endif // CRACKS_PHASE_FIELD_H

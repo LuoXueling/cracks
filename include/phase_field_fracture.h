@@ -71,7 +71,7 @@ template <int dim> double PhaseFieldFracture<dim>::staggered_scheme() {
   if ((this->ctl).params.enable_phase_field) {
     (this->ctl).computing_timer.enter_subsection("Solve phase field");
     double newton_reduction_phasefield = phasefield.newton_iteration(this->ctl);
-    phasefield.enforce_phase_field_limitation();
+    phasefield.enforce_phase_field_limitation(this->ctl);
     (this->ctl).computing_timer.leave_subsection("Solve phase field");
     return std::max(newton_reduction_elasticity, newton_reduction_phasefield);
   }

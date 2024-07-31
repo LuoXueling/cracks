@@ -130,9 +130,7 @@ void Elasticity<dim>::assemble_system(bool residual_only,
         }
 
         // Update history
-        lqph[q]->update("Driving force",
-                        std::max(lqph[q]->get("Driving force"),
-                                 0.5 * scalar_product(stress_0, E)));
+        lqph[q]->update("Driving force", 0.5 * scalar_product(stress_0, E));
       }
 
       cell->get_dof_indices(local_dof_indices);
@@ -204,7 +202,7 @@ template <int dim> void Elasticity<dim>::compute_load(Controller<dim> &ctl) {
 
   std::vector<Tensor<2, dim>> face_solution_grads(n_face_q_points);
 
-  Tensor<1, dim> load_value;
+  std::map<int, Tensor<1, dim>> load_value;
 
   const Tensor<2, dim> Identity = Tensors::get_Identity<dim>();
 
@@ -220,7 +218,7 @@ template <int dim> void Elasticity<dim>::compute_load(Controller<dim> &ctl) {
       for (unsigned int face = 0; face < GeometryInfo<dim>::faces_per_cell;
            ++face)
         if (cell->face(face)->at_boundary() &&
-            cell->face(face)->boundary_id() == 2) {
+            cell->face(face)->boundary_id() != 0) {
           fe_face_values.reinit(cell, face);
           fe_face_values[displacement].get_function_gradients(
               (this->solution), face_solution_grads);
@@ -235,19 +233,26 @@ template <int dim> void Elasticity<dim>::compute_load(Controller<dim> &ctl) {
             stress_term = constitutive_law.lambda * tr_E * Identity +
                           2 * constitutive_law.mu * E;
 
-            load_value += stress_term * fe_face_values.normal_vector(q_point) *
+            load_value[cell->face(face)->boundary_id()] += stress_term * fe_face_values.normal_vector(q_point) *
                           fe_face_values.JxW(q_point);
           }
-        } // end boundary 3 for structure
+        }
     }
+  typename std::map<int, Tensor<1, dim>>::iterator it;
+  for (it = load_value.begin(); it != load_value.end(); it++){
+    ctl.dcout << "Computing output - elasticity - load - recording - item" << std::endl;
+    for (int i=0; i<dim; ++i) {
+      ctl.dcout << "Computing output - elasticity - load - recording - dim - sum" << std::endl;
+      double load = it->second[i] * -1;
+      ctl.dcout << "Computing output - elasticity - load - recording - dim - record" << std::endl;
+      std::ostringstream stringStream;
+      stringStream << "Boundary-" << it->first << "-Dir-" << i;
+      (ctl.statistics).add_value(stringStream.str(), load);
+      (ctl.statistics).set_precision(stringStream.str(), 8);
+      (ctl.statistics).set_scientific(stringStream.str(), true);
+    }
+  }
 
-  load_value[0] *= -1.0;
-
-  double load_y = Utilities::MPI::sum(load_value[1], ctl.mpi_com);
-  ctl.pcout << "  Load y: " << load_y;
-  (ctl.statistics).add_value("Load y", load_y);
-  (ctl.statistics).set_precision("Load y", 8);
-  (ctl.statistics).set_scientific("Load y", true);
 }
 
 #endif // CRACKS_ELASTICITY_H

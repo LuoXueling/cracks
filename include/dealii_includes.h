@@ -102,6 +102,8 @@ template <int dim> using ZeroFunction = dealii::Functions::ZeroFunction<dim>;
 namespace LA {
 #if defined(DEAL_II_WITH_TRILINOS)
 using namespace dealii::LinearAlgebraTrilinos;
+#elif defined(DEAL_II_WITH_PETSC)
+using namespace dealii::LinearAlgebraPETSc;
 #else
 #error DEAL_II_WITH_PETSC or DEAL_II_WITH_TRILINOS required
 #endif

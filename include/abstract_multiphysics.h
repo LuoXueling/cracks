@@ -119,12 +119,10 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
           ctl.current_timestep = ctl.current_timestep / 10.0;
           ctl.time += ctl.current_timestep;
           return_old_solution();
-          staggered_scheme();
+          newton_reduction = staggered_scheme();
 
           if (ctl.current_timestep < 1.0e-9) {
-            ctl.pcout << "Step size too small - keeping the step size"
-                      << std::endl;
-            break;
+            AssertThrow(false, ExcInternalError("Step size too small"))
           }
         }
 
@@ -159,11 +157,14 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
     // Recover time step
     ctl.current_timestep = tmp_current_timestep;
     ctl.timer.leave_subsection("Solve Newton system");
-    ctl.timer.enter_subsection("Calculate outputs");
-    ctl.computing_timer.enter_subsection("Calculate outputs");
-    output_results();
-    ctl.computing_timer.leave_subsection("Calculate outputs");
-    ctl.timer.leave_subsection("Calculate outputs");
+    if ((ctl.timestep_number) % ctl.params.save_vtk_per_step == 0) {
+      ctl.timer.enter_subsection("Calculate outputs");
+      ctl.dcout << "Computing output" << std::endl;
+      ctl.computing_timer.enter_subsection("Calculate outputs");
+      output_results();
+      ctl.computing_timer.leave_subsection("Calculate outputs");
+      ctl.timer.leave_subsection("Calculate outputs");
+    }
     ctl.timer.enter_subsection("Solve Newton system");
     ++ctl.timestep_number;
 

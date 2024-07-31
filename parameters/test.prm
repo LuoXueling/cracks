@@ -1,17 +1,17 @@
 subsection Project
-  set Project name = test
-  set Mesh from = ../meshes/CurveLeftRight.inp
-  set Boundary from = ../meshes/singleNotch_boundary.txt
+  set Project name = singleNotchTension
+  set Mesh from = ../meshes/singleNotchDense.inp
+  set Boundary from = ../meshes/singleNotchTension_boundary.txt
   set Load sequence from = script
   set Enable phase field = true
 end
 
 subsection Runtime
   # Time step
-  set Max No of timesteps = 1
-  set Timestep size = 1.0e-4
-  set Timestep size to switch to = 1.0e-5
-  set Switch timestep after steps = 58
+  set Max No of timesteps = 1000
+  set Timestep size = 1.0e-5
+  set Timestep size to switch to = 1.0e-6
+  set Switch timestep after steps = 500
 
   # Solver
   set Use Direct Inner Solver = false
@@ -23,15 +23,16 @@ subsection Runtime
   set Decompose stress in rhs of displacement = none
   set Decompose stress in matrix of displacement = none
   set Decompose energy in phase field = none
+  set Save vtk per step = 10
 
   # Numerical
   set Constant small quantity k = 1.0e-6
 end
 
 subsection Material
-    set Young's modulus = 2000
+    set Young's modulus = 210000
     set Poisson's ratio = 0.3
-    set Critical energy release rate = 1
+    set Critical energy release rate = 2.7
     set Phase field length scale = 0.015
     set Plane state = strain
 end

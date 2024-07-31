@@ -66,6 +66,7 @@ struct Runtime {
   std::string decompose_stress_matrix_u;
   std::string decompose_energy_phi;
   double constant_k;
+  unsigned int save_vtk_per_step;
 
   static void declare_parameters(ParameterHandler &prm);
 
@@ -106,6 +107,8 @@ void Runtime::declare_parameters(ParameterHandler &prm) {
 
     prm.declare_entry("Constant small quantity k", "1.0e-6",
                       Patterns::Double(0));
+    prm.declare_entry("Save vtk per step", "1",
+                      Patterns::Integer(0));
   }
   prm.leave_subsection();
 }
@@ -144,6 +147,8 @@ void Runtime::parse_parameters(ParameterHandler &prm) {
     decompose_energy_phi = prm.get("Decompose energy in phase field");
 
     constant_k = prm.get_double("Constant small quantity k");
+
+    save_vtk_per_step = prm.get_integer("Save vtk per step");
   }
   prm.leave_subsection();
 }

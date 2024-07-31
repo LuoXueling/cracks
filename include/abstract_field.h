@@ -221,7 +221,7 @@ double AbstractField<dim>::newton_iteration(Controller<dim> &ctl) {
   assemble_system(true, ctl);
 
   double newton_residual = system_rhs.linfty_norm();
-  double old_newton_residual = newton_residual;
+  double old_newton_residual = newton_residual*1e8;
   unsigned int newton_step = 1;
   unsigned int no_linear_iterations = 0;
 
@@ -230,9 +230,9 @@ double AbstractField<dim>::newton_iteration(Controller<dim> &ctl) {
   while (newton_residual > ctl.params.lower_bound_newton_residual &&
          newton_step < ctl.params.max_no_newton_steps) {
     old_newton_residual = newton_residual;
-
-    assemble_system(true, ctl);
-    newton_residual = system_rhs.linfty_norm();
+//    ctl.dcout << "Solve Newton system - Newton iteration - second residual assemble" << std::endl;
+//    assemble_system(true, ctl);
+//    newton_residual = system_rhs.linfty_norm();
 
     if (newton_residual < ctl.params.lower_bound_newton_residual) {
       ctl.pcout << '\t' << std::scientific << newton_residual << std::endl;
@@ -260,6 +260,7 @@ double AbstractField<dim>::newton_iteration(Controller<dim> &ctl) {
         break;
       else {
         distributed_solution += increment;
+        distribute_all_constraints(distributed_solution, ctl);
         solution = distributed_solution;
       }
 
