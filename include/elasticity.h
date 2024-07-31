@@ -45,12 +45,12 @@ void Elasticity<dim>::assemble_system(bool residual_only,
   (this->system_rhs) = 0;
   (this->system_matrix) = 0;
 
-  FEValues<dim> fe_values((this->fe), (this->quadrature_formula),
+  FEValues<dim> fe_values((this->fe), ctl.quadrature_formula,
                           update_values | update_gradients |
                               update_quadrature_points | update_JxW_values);
 
   const unsigned int dofs_per_cell = (this->fe).n_dofs_per_cell();
-  const unsigned int n_q_points = (this->quadrature_formula).size();
+  const unsigned int n_q_points = ctl.quadrature_formula.size();
 
   FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
   Vector<double> cell_rhs(dofs_per_cell);
@@ -181,7 +181,7 @@ void Elasticity<dim>::output_results(DataOut<dim> &data_out,
 }
 
 template <int dim> void Elasticity<dim>::compute_load(Controller<dim> &ctl) {
-  const QGauss<dim - 1> face_quadrature_formula((this->fe).degree + 1);
+  const QGauss<dim - 1> face_quadrature_formula(ctl.params.poly_degree + 1);
   FEFaceValues<dim> fe_face_values((this->fe), face_quadrature_formula,
                                    update_values | update_gradients |
                                        update_normal_vectors |

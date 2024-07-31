@@ -16,6 +16,7 @@ public:
   MPI_Comm mpi_com;
 
   parallel::distributed::Triangulation<dim> triangulation;
+  QGauss<dim> quadrature_formula;
   Parameters::AllParameters params;
 
   ConditionalOStream pcout;
@@ -38,6 +39,7 @@ Controller<dim>::Controller(Parameters::AllParameters &prms)
       triangulation(mpi_com, typename Triangulation<dim>::MeshSmoothing(
                                  Triangulation<dim>::smoothing_on_refinement |
                                  Triangulation<dim>::smoothing_on_coarsening)),
+      quadrature_formula(prms.poly_degree + 1),
       pcout(std::cout, (Utilities::MPI::this_mpi_process(mpi_com) == 0)),
       dcout(pcout, params.log_file), timer(mpi_com, pcout, TimerOutput::never,
                                            TimerOutput::cpu_and_wall_times),

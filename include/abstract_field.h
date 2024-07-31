@@ -47,7 +47,6 @@ public:
    * FE system, constraints, and dof handler
    */
   FESystem<dim> fe;
-  const QGauss<dim> quadrature_formula;
   DoFHandler<dim> dof_handler;
   IndexSet locally_owned_dofs;
   IndexSet locally_relevant_dofs;
@@ -74,7 +73,7 @@ AbstractField<dim>::AbstractField(const unsigned int n_components,
                                   std::string &boundary_from,
                                   Controller<dim> &ctl)
     : fe(FE_Q<dim>(ctl.params.poly_degree), n_components),
-      quadrature_formula(fe.degree + 1), dof_handler(ctl.triangulation) {
+      dof_handler(ctl.triangulation) {
   for (unsigned int d = 0; d < n_components; ++d) {
     component_masks.push_back(ComponentMask(n_components, false));
     component_masks[d].set(d, true);
