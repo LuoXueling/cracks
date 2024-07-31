@@ -14,7 +14,14 @@ public:
   void update(std::string name, double solution) {
     solution_dict[name] = solution;
   };
-  double get(std::string name) { return solution_dict[name]; };
+  double get(std::string name, double default_value = 0.0) {
+    try {
+      return solution_dict[name];
+    }
+    catch (...) {
+      return default_value;
+    }
+  };
 
 private:
   std::map<std::string, double> solution_dict;

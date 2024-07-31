@@ -17,7 +17,7 @@ using namespace dealii;
 
 template <int dim> class Elasticity : public AbstractField<dim> {
 public:
-  Elasticity(unsigned int n_components, std::string &boundary_from,
+  Elasticity(unsigned int n_components, std::string boundary_from,
              Controller<dim> &ctl);
 
   void assemble_system(bool residual_only, Controller<dim> &ctl) override;
@@ -34,7 +34,7 @@ public:
 
 template <int dim>
 Elasticity<dim>::Elasticity(const unsigned int n_components,
-                            std::string &boundary_from, Controller<dim> &ctl)
+                            std::string boundary_from, Controller<dim> &ctl)
     : AbstractField<dim>(n_components, boundary_from, ctl),
       constitutive_law(ctl.params.E, ctl.params.v, ctl.params.plane_state),
       stress(constitutive_law) {}
@@ -84,6 +84,13 @@ void Elasticity<dim>::assemble_system(bool residual_only,
                                                      old_displacement_grads);
 
       for (unsigned int q = 0; q < n_q_points; ++q) {
+        // Get history
+        const std::vector<std::shared_ptr<PointHistory>> lqph =
+            ctl.quadrature_point_history.get_data(cell);
+
+        double phasefield = lqph[q]->get("Phase field", 0.0);
+        double degradation = pow(1 - phasefield, 2) + ctl.params.constant_k;
+
         // Values of fields and their derivatives
         for (unsigned int k = 0; k < dofs_per_cell; ++k) {
           Nu_kq[k] = fe_values[displacement].value(k, q);
@@ -94,12 +101,10 @@ void Elasticity<dim>::assemble_system(bool residual_only,
         const Tensor<2, dim> Identity = Tensors ::get_Identity<dim>();
         const Tensor<2, dim> E = 0.5 * (grad_u + transpose(grad_u));
         const double tr_E = trace(E);
-        Tensor<2, dim> stress = constitutive_law.lambda * tr_E * Identity +
-                                2 * constitutive_law.mu * E;
+        Tensor<2, dim> stress_0 = constitutive_law.lambda * tr_E * Identity +
+                                  2 * constitutive_law.mu * E;
 
         for (unsigned int i = 0; i < dofs_per_cell; ++i) {
-          const unsigned int comp_i =
-              (this->fe).system_to_component_index(i).first;
           const Tensor<2, dim> Bu_iq_symmetric =
               0.5 * (Bu_kq[i] + transpose(Bu_kq[i]));
           const double Bu_iq_symmetric_tr = trace(Bu_iq_symmetric);
@@ -107,10 +112,9 @@ void Elasticity<dim>::assemble_system(bool residual_only,
           if (!residual_only) {
 
             for (unsigned int j = 0; j < dofs_per_cell; ++j) {
-              const unsigned int comp_j =
-                  (this->fe).system_to_component_index(j).first;
               {
                 cell_matrix(i, j) +=
+                    degradation *
                     (scalar_product(constitutive_law.lambda *
                                             Bu_iq_symmetric_tr * Identity +
                                         2 * constitutive_law.mu *
@@ -121,16 +125,14 @@ void Elasticity<dim>::assemble_system(bool residual_only,
             }
           }
 
-          cell_rhs(i) += (scalar_product(Bu_kq[i], stress) * fe_values.JxW(q));
+          cell_rhs(i) += degradation * (scalar_product(Bu_kq[i], stress_0) *
+                                        fe_values.JxW(q));
         }
 
         // Update history
-        const std::vector<std::shared_ptr<PointHistory>> lqph =
-            ctl.quadrature_point_history.get_data(cell);
-
         lqph[q]->update("Driving force",
                         std::max(lqph[q]->get("Driving force"),
-                                 0.5 * scalar_product(stress, E)));
+                                 0.5 * scalar_product(stress_0, E)));
       }
 
       cell->get_dof_indices(local_dof_indices);

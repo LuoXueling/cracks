@@ -12,7 +12,6 @@
 #include "dealii_includes.h"
 #include "elasticity.h"
 #include "parameters.h"
-#include "phase_field.h"
 #include "utils.h"
 #include <fstream>
 #include <iostream>

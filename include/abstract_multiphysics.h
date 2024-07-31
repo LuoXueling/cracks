@@ -170,7 +170,6 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
     ctl.computing_timer.print_summary();
     ctl.computing_timer.reset();
     ctl.pcout << std::endl;
-    refine_grid();
   } while (ctl.timestep_number <= ctl.params.max_no_timesteps);
   ctl.timer.leave_subsection("Solve Newton system");
   ctl.timer.manual_print_summary(ctl.dcout.fout);

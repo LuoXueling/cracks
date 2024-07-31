@@ -12,7 +12,7 @@
 
 template <int dim> class AbstractField {
 public:
-  AbstractField(unsigned int n_components, std::string &boundary_from,
+  AbstractField(unsigned int n_components, std::string boundary_from,
                 Controller<dim> &ctl);
 
   virtual void assemble_system(bool residual_only, Controller<dim> &ctl) {
@@ -75,7 +75,7 @@ public:
 
 template <int dim>
 AbstractField<dim>::AbstractField(const unsigned int n_components,
-                                  std::string &boundary_from,
+                                  std::string boundary_from,
                                   Controller<dim> &ctl)
     : fe(FE_Q<dim>(ctl.params.poly_degree), n_components),
       dof_handler(ctl.triangulation) {
@@ -329,7 +329,7 @@ void AbstractField<dim>::distribute_all_constraints(LA::MPI::Vector &vector,
 template <int dim>
 parallel::distributed::SolutionTransfer<dim, LA::MPI::Vector>
 AbstractField<dim>::prepare_refine() {
-  static parallel::distributed::SolutionTransfer<dim, LA::MPI::Vector> soltrans(
+  parallel::distributed::SolutionTransfer<dim, LA::MPI::Vector> soltrans(
       dof_handler);
   soltrans.prepare_for_coarsening_and_refinement(solution);
   return soltrans;
