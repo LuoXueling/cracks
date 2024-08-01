@@ -115,7 +115,8 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
       ctl.debug_dcout << "Solve Newton system - enter loop" << std::endl;
       record_old_solution();
       try {
-        ctl.debug_dcout << "Solve Newton system - staggered scheme" << std::endl;
+        ctl.debug_dcout << "Solve Newton system - staggered scheme"
+                        << std::endl;
         newton_reduction = staggered_scheme();
         while (newton_reduction > ctl.params.upper_newton_rho) {
           //              use_old_timestep_pf = true;

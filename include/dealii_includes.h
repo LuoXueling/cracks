@@ -13,11 +13,11 @@
 #include <deal.II/base/logstream.h>
 #include <deal.II/base/parameter_handler.h>
 #include <deal.II/base/quadrature_lib.h>
+#include <deal.II/base/quadrature_point_data.h>
 #include <deal.II/base/table_handler.h>
 #include <deal.II/base/tensor.h>
 #include <deal.II/base/timer.h>
 #include <deal.II/base/utilities.h>
-#include <deal.II/base/quadrature_point_data.h>
 
 #include <deal.II/lac/block_sparse_matrix.h>
 #include <deal.II/lac/block_vector.h>

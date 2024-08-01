@@ -15,10 +15,12 @@ public:
   AbstractField(unsigned int n_components, std::string boundary_from,
                 std::string update_scheme, Controller<dim> &ctl);
 
-  virtual void assemble_newton_system(bool residual_only, Controller<dim> &ctl) {
+  virtual void assemble_newton_system(bool residual_only,
+                                      Controller<dim> &ctl) {
     AssertThrow(false, ExcNotImplemented())
   };
-  virtual void assemble_linear_system(bool residual_only, Controller<dim> &ctl) {
+  virtual void assemble_linear_system(bool residual_only,
+                                      Controller<dim> &ctl) {
     AssertThrow(false, ExcNotImplemented())
   };
   virtual unsigned int solve(Controller<dim> &ctl) {
@@ -39,7 +41,7 @@ public:
                                           Controller<dim> &ctl);
 
   virtual double update(Controller<dim> &ctl);
-  virtual double update_linear_system(Controller<dim> &ctl){return 0.0};
+  virtual double update_linear_system(Controller<dim> &ctl) { return 0.0 };
   virtual double update_newton_system(Controller<dim> &ctl);
   parallel::distributed::SolutionTransfer<dim, LA::MPI::Vector>
   prepare_refine();
@@ -82,6 +84,7 @@ public:
 template <int dim>
 AbstractField<dim>::AbstractField(const unsigned int n_components,
                                   std::string boundary_from,
+                                  std::string update_scheme,
                                   Controller<dim> &ctl)
     : fe(FE_Q<dim>(ctl.params.poly_degree), n_components),
       dof_handler(ctl.triangulation), update_scheme_timestep(update_scheme) {
@@ -230,15 +233,18 @@ double AbstractField<dim>::update_newton_system(Controller<dim> &ctl) {
 
   // Application of the initial boundary conditions to the
   // variational equations:
-  ctl.debug_dcout << "Solve Newton system - Newton iteration - initialize" << std::endl;
+  ctl.debug_dcout << "Solve Newton system - Newton iteration - initialize"
+                  << std::endl;
   setup_boundary_condition(ctl);
   distribute_all_constraints(distributed_solution, ctl);
   solution = distributed_solution;
-  ctl.debug_dcout << "Solve Newton system - Newton iteration - first residual assemble" << std::endl;
+  ctl.debug_dcout
+      << "Solve Newton system - Newton iteration - first residual assemble"
+      << std::endl;
   assemble_newton_system(true, ctl);
 
   double newton_residual = system_rhs.linfty_norm();
-  double old_newton_residual = newton_residual*1e8;
+  double old_newton_residual = newton_residual * 1e8;
   unsigned int newton_step = 1;
   unsigned int no_linear_iterations = 0;
 
@@ -247,9 +253,9 @@ double AbstractField<dim>::update_newton_system(Controller<dim> &ctl) {
   while (newton_residual > ctl.params.lower_bound_newton_residual &&
          newton_step < ctl.params.max_no_newton_steps) {
     old_newton_residual = newton_residual;
-//    ctl.dcout << "Solve Newton system - Newton iteration - second residual assemble" << std::endl;
-//    assemble_system(true, ctl);
-//    newton_residual = system_rhs.linfty_norm();
+    //    ctl.dcout << "Solve Newton system - Newton iteration - second residual
+    //    assemble" << std::endl; assemble_newton_system(true, ctl);
+    //    newton_residual = system_rhs.linfty_norm();
 
     if (newton_residual < ctl.params.lower_bound_newton_residual) {
       ctl.dcout << '\t' << std::scientific << newton_residual << std::endl;
@@ -257,24 +263,37 @@ double AbstractField<dim>::update_newton_system(Controller<dim> &ctl) {
     }
 
     if (newton_step == 1 ||
-        newton_residual / old_newton_residual > nonlinear_rho)
-    {ctl.debug_dcout << "Solve Newton system - Newton iteration - system assemble" << std::endl;
+        newton_residual / old_newton_residual > nonlinear_rho) {
+      ctl.debug_dcout
+          << "Solve Newton system - Newton iteration - system assemble"
+          << std::endl;
       assemble_newton_system(false, ctl);
+    }
 
     // Solve Ax = b
-    ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear system" << std::endl;
+    ctl.debug_dcout
+        << "Solve Newton system - Newton iteration - solve linear system"
+        << std::endl;
     no_linear_iterations = solve(ctl);
-    ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear system exit" << std::endl;
+    ctl.debug_dcout
+        << "Solve Newton system - Newton iteration - solve linear system exit"
+        << std::endl;
     line_search_step = 0;
     // Relaxation
     for (; line_search_step < ctl.params.max_no_line_search_steps;
          ++line_search_step) {
-      ctl.debug_dcout << "Solve Newton system - Newton iteration - start damping" << std::endl;
+      ctl.debug_dcout
+          << "Solve Newton system - Newton iteration - start damping"
+          << std::endl;
       distributed_solution -= increment;
-      ctl.debug_dcout << "Solve Newton system - Newton iteration - damping - distribute" << std::endl;
+      ctl.debug_dcout
+          << "Solve Newton system - Newton iteration - damping - distribute"
+          << std::endl;
       distribute_all_constraints(distributed_solution, ctl);
       solution = distributed_solution;
-      ctl.debug_dcout << "Solve Newton system - Newton iteration - damping residual assemble" << std::endl;
+      ctl.debug_dcout << "Solve Newton system - Newton iteration - damping "
+                         "residual assemble"
+                      << std::endl;
       assemble_newton_system(true, ctl);
       new_newton_residual = system_rhs.linfty_norm();
 

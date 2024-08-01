@@ -19,7 +19,8 @@ template <int dim> class PhaseField : public AbstractField<dim> {
 public:
   PhaseField(std::string update_scheme, Controller<dim> &ctl);
 
-  void assemble_newton_system(bool residual_only, Controller<dim> &ctl) override;
+  void assemble_newton_system(bool residual_only,
+                              Controller<dim> &ctl) override;
   unsigned int solve(Controller<dim> &ctl) override;
   void output_results(DataOut<dim> &data_out, Controller<dim> &ctl) override;
 
@@ -32,7 +33,7 @@ PhaseField<dim>::PhaseField(std::string update_scheme, Controller<dim> &ctl)
 
 template <int dim>
 void PhaseField<dim>::assemble_newton_system(bool residual_only,
-                                      Controller<dim> &ctl) {
+                                             Controller<dim> &ctl) {
   (this->system_rhs) = 0;
   (this->system_matrix) = 0;
 
@@ -63,10 +64,8 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
 
       fe_values.reinit(cell);
 
-      fe_values.get_function_values((this->solution),
-                                                old_phasefield_values);
-      fe_values.get_function_gradients((this->solution),
-                                                   old_phasefield_grads);
+      fe_values.get_function_values((this->solution), old_phasefield_values);
+      fe_values.get_function_gradients((this->solution), old_phasefield_grads);
 
       for (unsigned int q = 0; q < n_q_points; ++q) {
         // Get history
@@ -156,12 +155,14 @@ template <int dim>
 void PhaseField<dim>::enforce_phase_field_limitation(Controller<dim> &ctl) {
   typename DoFHandler<dim>::active_cell_iterator cell = (this->dof_handler)
                                                             .begin_active(),
-                                                 endc = (this->dof_handler).end();
+                                                 endc =
+                                                     (this->dof_handler).end();
 
   LA::MPI::Vector distributed_solution(this->locally_owned_dofs, ctl.mpi_com);
   distributed_solution = this->solution;
 
-  std::vector<types::global_dof_index> local_dof_indices((this->fe).dofs_per_cell);
+  std::vector<types::global_dof_index> local_dof_indices(
+      (this->fe).dofs_per_cell);
   for (; cell != endc; ++cell)
     if (cell->is_locally_owned()) {
       cell->get_dof_indices(local_dof_indices);

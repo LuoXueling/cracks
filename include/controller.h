@@ -62,7 +62,8 @@ Controller<dim>::Controller(Parameters::AllParameters &prms)
                                  Triangulation<dim>::smoothing_on_coarsening)),
       quadrature_formula(prms.poly_degree + 1),
       dcout(std::cout, (Utilities::MPI::this_mpi_process(mpi_com) == 0)),
-      debug_dcout(std::cout, (Utilities::MPI::this_mpi_process(mpi_com) == 0)&&prms.debug_output),
+      debug_dcout(std::cout, (Utilities::MPI::this_mpi_process(mpi_com) == 0) &&
+                                 prms.debug_output),
       timer(mpi_com, dcout, TimerOutput::never,
             TimerOutput::cpu_and_wall_times),
       computing_timer(mpi_com, dcout, TimerOutput::never,

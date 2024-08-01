@@ -111,8 +111,7 @@ void Runtime::declare_parameters(ParameterHandler &prm) {
 
     prm.declare_entry("Constant small quantity k", "1.0e-6",
                       Patterns::Double(0));
-    prm.declare_entry("Save vtk per step", "1",
-                      Patterns::Integer(0));
+    prm.declare_entry("Save vtk per step", "1", Patterns::Integer(0));
   }
   prm.leave_subsection();
 }

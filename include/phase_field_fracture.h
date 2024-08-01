@@ -66,20 +66,23 @@ template <int dim> void PhaseFieldFracture<dim>::return_old_solution() {
 }
 
 template <int dim> double PhaseFieldFracture<dim>::staggered_scheme() {
-  (this->ctl).dcout << "Solve Newton system - staggered scheme - Solving elasticity" << std::endl;
+  (this->ctl).dcout
+      << "Solve Newton system - staggered scheme - Solving elasticity"
+      << std::endl;
   (this->ctl).computing_timer.enter_subsection("Solve elasticity");
   double newton_reduction_elasticity = elasticity.update(this->ctl);
   (this->ctl).computing_timer.leave_subsection("Solve elasticity");
 
   if ((this->ctl).params.enable_phase_field) {
-    (this->ctl).dcout << "Solve Newton system - staggered scheme - Solving phase field" << std::endl;
+    (this->ctl).dcout
+        << "Solve Newton system - staggered scheme - Solving phase field"
+        << std::endl;
     (this->ctl).computing_timer.enter_subsection("Solve phase field");
     double newton_reduction_phasefield = phasefield.update(this->ctl);
     phasefield.enforce_phase_field_limitation(this->ctl);
     (this->ctl).computing_timer.leave_subsection("Solve phase field");
     return std::max(newton_reduction_elasticity, newton_reduction_phasefield);
-  }
-  else{
+  } else {
     return newton_reduction_elasticity;
   }
 }

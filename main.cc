@@ -17,10 +17,8 @@
 #include "parameters.h"
 #include "phase_field_fracture.h"
 
-int main(int argc, char *argv[])
-{
-  try
-  {
+int main(int argc, char *argv[]) {
+  try {
     using namespace dealii;
     MultithreadInfo::set_thread_limit(4);
     Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
@@ -43,19 +41,14 @@ int main(int argc, char *argv[])
       system(command.c_str());
     }
 
-    if (params.dim == 2)
-    {
+    if (params.dim == 2) {
       PhaseFieldFracture<2> pfm(params);
       pfm.run();
-    }
-    else if (params.dim == 3)
-    {
+    } else if (params.dim == 3) {
       PhaseFieldFracture<3> pfm(params);
       pfm.run();
     }
-  }
-  catch (std::exception &exc)
-  {
+  } catch (std::exception &exc) {
     std::cerr << std::endl
               << std::endl
               << "----------------------------------------------------"
@@ -67,9 +60,7 @@ int main(int argc, char *argv[])
               << std::endl;
 
     return 1;
-  }
-  catch (...)
-  {
+  } catch (...) {
     std::cerr << std::endl
               << std::endl
               << "----------------------------------------------------"

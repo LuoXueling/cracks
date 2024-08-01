@@ -17,10 +17,11 @@ using namespace dealii;
 
 template <int dim> class Elasticity : public AbstractField<dim> {
 public:
-  Elasticity(unsigned int n_components, std::string boundary_from, std::string update_scheme,
-             Controller<dim> &ctl);
+  Elasticity(unsigned int n_components, std::string boundary_from,
+             std::string update_scheme, Controller<dim> &ctl);
 
-  void assemble_newton_system(bool residual_only, Controller<dim> &ctl) override;
+  void assemble_newton_system(bool residual_only,
+                              Controller<dim> &ctl) override;
   unsigned int solve(Controller<dim> &ctl) override;
   void output_results(DataOut<dim> &data_out, Controller<dim> &ctl) override;
 
@@ -34,14 +35,15 @@ public:
 
 template <int dim>
 Elasticity<dim>::Elasticity(const unsigned int n_components,
-                            std::string boundary_from, std::string update_scheme, Controller<dim> &ctl)
+                            std::string boundary_from,
+                            std::string update_scheme, Controller<dim> &ctl)
     : AbstractField<dim>(n_components, boundary_from, update_scheme, ctl),
       constitutive_law(ctl.params.E, ctl.params.v, ctl.params.plane_state),
       stress(constitutive_law) {}
 
 template <int dim>
 void Elasticity<dim>::assemble_newton_system(bool residual_only,
-                                      Controller<dim> &ctl) {
+                                             Controller<dim> &ctl) {
   (this->system_rhs) = 0;
   (this->system_matrix) = 0;
 
@@ -156,7 +158,9 @@ template <int dim> unsigned int Elasticity<dim>::solve(Controller<dim> &ctl) {
 
   SolverControl solver_control((this->dof_handler).n_dofs(),
                                1e-8 * (this->system_rhs).l2_norm());
-  ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear system - preconditioner" << std::endl;
+  ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear "
+                     "system - preconditioner"
+                  << std::endl;
   SolverGMRES<LA::MPI::Vector> solver(solver_control);
   {
     LA::MPI::PreconditionAMG::AdditionalData data;
@@ -167,10 +171,14 @@ template <int dim> unsigned int Elasticity<dim>::solve(Controller<dim> &ctl) {
     data.aggregation_threshold = 0.02;
     (this->preconditioner).initialize((this->system_matrix), data);
   }
-  ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear system - solve" << std::endl;
+  ctl.debug_dcout
+      << "Solve Newton system - Newton iteration - solve linear system - solve"
+      << std::endl;
   solver.solve((this->system_matrix), (this->increment), (this->system_rhs),
                (this->preconditioner));
-  ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear system - solve complete" << std::endl;
+  ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear "
+                     "system - solve complete"
+                  << std::endl;
 
   return solver_control.last_step();
 }
@@ -179,7 +187,8 @@ template <int dim>
 void Elasticity<dim>::output_results(DataOut<dim> &data_out,
                                      Controller<dim> &ctl) {
   std::vector<std::string> solution_names(dim, "Displacement");
-  ctl.debug_dcout << "Computing output - elasticity - displacement" << std::endl;
+  ctl.debug_dcout << "Computing output - elasticity - displacement"
+                  << std::endl;
   std::vector<DataComponentInterpretation::DataComponentInterpretation>
       data_component_interpretation(
           dim, DataComponentInterpretation::component_is_part_of_vector);
@@ -216,9 +225,11 @@ template <int dim> void Elasticity<dim>::compute_load(Controller<dim> &ctl) {
                                                             .begin_active(),
                                                  endc =
                                                      (this->dof_handler).end();
-  for (const int id: ctl.boundary_ids) load_value[id] = Tensor<1, dim>();
+  for (const int id : ctl.boundary_ids)
+    load_value[id] = Tensor<1, dim>();
   const FEValuesExtractors::Vector displacement(0);
-  ctl.debug_dcout << "Computing output - elasticity - load - computing" << std::endl;
+  ctl.debug_dcout << "Computing output - elasticity - load - computing"
+                  << std::endl;
   for (; cell != endc; ++cell)
     if (cell->is_locally_owned()) {
       for (unsigned int face = 0; face < GeometryInfo<dim>::faces_per_cell;
@@ -239,19 +250,26 @@ template <int dim> void Elasticity<dim>::compute_load(Controller<dim> &ctl) {
             stress_term = constitutive_law.lambda * tr_E * Identity +
                           2 * constitutive_law.mu * E;
 
-            load_value[cell->face(face)->boundary_id()] += stress_term * fe_face_values.normal_vector(q_point) *
-                          fe_face_values.JxW(q_point);
+            load_value[cell->face(face)->boundary_id()] +=
+                stress_term * fe_face_values.normal_vector(q_point) *
+                fe_face_values.JxW(q_point);
           }
         }
     }
-  ctl.debug_dcout << "Computing output - elasticity - load - recording" << std::endl;
+  ctl.debug_dcout << "Computing output - elasticity - load - recording"
+                  << std::endl;
   typename std::map<int, Tensor<1, dim>>::iterator it;
-  for (it = load_value.begin(); it != load_value.end(); it++){
-    ctl.debug_dcout << "Computing output - elasticity - load - recording - item" << std::endl;
-    for (int i=0; i<dim; ++i) {
-      ctl.debug_dcout << "Computing output - elasticity - load - recording - dim - sum" << std::endl;
+  for (it = load_value.begin(); it != load_value.end(); it++) {
+    ctl.debug_dcout << "Computing output - elasticity - load - recording - item"
+                    << std::endl;
+    for (int i = 0; i < dim; ++i) {
+      ctl.debug_dcout
+          << "Computing output - elasticity - load - recording - dim - sum"
+          << std::endl;
       double load = Utilities::MPI::sum(it->second[i], ctl.mpi_com) * -1;
-      ctl.debug_dcout << "Computing output - elasticity - load - recording - dim - record" << std::endl;
+      ctl.debug_dcout
+          << "Computing output - elasticity - load - recording - dim - record"
+          << std::endl;
       std::ostringstream stringStream;
       stringStream << "Boundary-" << it->first << "-Dir-" << i;
       (ctl.statistics).add_value(stringStream.str(), load);
@@ -259,7 +277,6 @@ template <int dim> void Elasticity<dim>::compute_load(Controller<dim> &ctl) {
       (ctl.statistics).set_scientific(stringStream.str(), true);
     }
   }
-
 }
 
 #endif // CRACKS_ELASTICITY_H
