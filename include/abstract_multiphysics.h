@@ -204,9 +204,19 @@ template <int dim> void AbstractMultiphysics<dim>::setup_mesh() {
     grid_out.write_svg(ctl.triangulation, out);
   }
 
-  //  std::tuple<std::vector<Point<dim>>, std::vector<CellData<dim>>,
-  //  SubCellData> info; info =
-  //  GridTools::get_coarse_mesh_description(ctl.triangulation);
+  std::vector<int> boundary_ids;
+  std::tuple<std::vector<Point<dim>>, std::vector<CellData<dim>>, SubCellData>
+      info;
+  info = GridTools::get_coarse_mesh_description(ctl.triangulation);
+  for (const CellData<1> i : std::get<2>(info).boundary_lines) {
+    int id = i.boundary_id;
+    if (std::find(boundary_ids.begin(), boundary_ids.end(), id) ==
+            boundary_ids.end() &&
+        id != -1 && id != 0) {
+      boundary_ids.push_back(id);
+    }
+  }
+  ctl.boundary_ids = boundary_ids;
   ctl.dcout << "Find " << ctl.triangulation.n_global_active_cells()
             << " elements" << std::endl;
 }

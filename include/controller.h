@@ -48,6 +48,8 @@ public:
 
   TableHandler statistics;
 
+  std::vector<int> boundary_ids;
+
   CellDataStorage<typename Triangulation<dim>::cell_iterator, PointHistory>
       quadrature_point_history;
 };

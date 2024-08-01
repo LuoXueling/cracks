@@ -216,7 +216,7 @@ template <int dim> void Elasticity<dim>::compute_load(Controller<dim> &ctl) {
                                                             .begin_active(),
                                                  endc =
                                                      (this->dof_handler).end();
-
+  for (const int id: ctl.boundary_ids) load_value[id] = Tensor<1, dim>();
   const FEValuesExtractors::Vector displacement(0);
   ctl.debug_dcout << "Computing output - elasticity - load - computing" << std::endl;
   for (; cell != endc; ++cell)
@@ -249,8 +249,8 @@ template <int dim> void Elasticity<dim>::compute_load(Controller<dim> &ctl) {
   for (it = load_value.begin(); it != load_value.end(); it++){
     ctl.debug_dcout << "Computing output - elasticity - load - recording - item" << std::endl;
     for (int i=0; i<dim; ++i) {
-      double load = it->second[i] * -1;
       ctl.debug_dcout << "Computing output - elasticity - load - recording - dim - sum" << std::endl;
+      double load = Utilities::MPI::sum(it->second[i], ctl.mpi_com) * -1;
       ctl.debug_dcout << "Computing output - elasticity - load - recording - dim - record" << std::endl;
       std::ostringstream stringStream;
       stringStream << "Boundary-" << it->first << "-Dir-" << i;
