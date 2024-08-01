@@ -41,7 +41,7 @@ public:
                                           Controller<dim> &ctl);
 
   virtual double update(Controller<dim> &ctl);
-  virtual double update_linear_system(Controller<dim> &ctl) { return 0.0 };
+  virtual double update_linear_system(Controller<dim> &ctl) { return 0.0; };
   virtual double update_newton_system(Controller<dim> &ctl);
   parallel::distributed::SolutionTransfer<dim, LA::MPI::Vector>
   prepare_refine();
