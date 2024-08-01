@@ -140,6 +140,8 @@ template <int dim> unsigned int PhaseField<dim>::solve(Controller<dim> &ctl) {
 
   solver.solve((this->system_matrix), (this->increment), (this->system_rhs),
                (this->preconditioner));
+
+  return solver_control.last_step();
 }
 
 template <int dim>
