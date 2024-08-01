@@ -73,6 +73,7 @@ struct Runtime {
   std::string decompose_stress_rhs_u;
   std::string decompose_stress_matrix_u;
   std::string decompose_energy_phi;
+  std::string phase_field_scheme;
   double constant_k;
   unsigned int save_vtk_per_step;
 
@@ -106,6 +107,8 @@ void Runtime::declare_parameters(ParameterHandler &prm) {
 
     prm.declare_entry("Decompose stress in rhs of displacement", "spectral",
                       Patterns::Selection("spectral|none"));
+    prm.declare_entry("Phase field update", "newton",
+                      Patterns::Selection("newton|linear"));
 
     prm.declare_entry("Decompose stress in matrix of displacement", "spectral",
                       Patterns::Selection("spectral|none"));
@@ -152,6 +155,7 @@ void Runtime::parse_parameters(ParameterHandler &prm) {
         prm.get("Decompose stress in matrix of displacement");
 
     decompose_energy_phi = prm.get("Decompose energy in phase field");
+    phase_field_scheme = prm.get("Phase field update");
 
     constant_k = prm.get_double("Constant small quantity k");
 

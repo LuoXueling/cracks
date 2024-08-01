@@ -29,6 +29,8 @@ subsection Runtime
   set Decompose energy in phase field = none
   set Save vtk per step = 10
 
+  # Phase field scheme
+  set Phase field update = linear
   # Numerical
   set Constant small quantity k = 1.0e-6
 end

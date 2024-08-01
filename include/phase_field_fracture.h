@@ -37,7 +37,7 @@ template <int dim>
 PhaseFieldFracture<dim>::PhaseFieldFracture(Parameters::AllParameters &prms)
     : AbstractMultiphysics<dim>(prms),
       elasticity(dim, (this->ctl).params.boundary_from, "newton", this->ctl),
-      phasefield("newton", this->ctl) {}
+      phasefield(prms.phase_field_scheme, this->ctl) {}
 
 template <int dim> void PhaseFieldFracture<dim>::setup_system() {
   this->ctl.debug_dcout << "Initialize system - elasticity" << std::endl;
