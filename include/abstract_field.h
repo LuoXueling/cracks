@@ -13,9 +13,12 @@
 template <int dim> class AbstractField {
 public:
   AbstractField(unsigned int n_components, std::string boundary_from,
-                Controller<dim> &ctl);
+                std::string update_scheme, Controller<dim> &ctl);
 
-  virtual void assemble_system(bool residual_only, Controller<dim> &ctl) {
+  virtual void assemble_newton_system(bool residual_only, Controller<dim> &ctl) {
+    AssertThrow(false, ExcNotImplemented())
+  };
+  virtual void assemble_linear_system(bool residual_only, Controller<dim> &ctl) {
     AssertThrow(false, ExcNotImplemented())
   };
   virtual unsigned int solve(Controller<dim> &ctl) {
@@ -35,7 +38,9 @@ public:
   virtual void distribute_all_constraints(LA::MPI::Vector &vector,
                                           Controller<dim> &ctl);
 
-  virtual double newton_iteration(Controller<dim> &ctl);
+  virtual double update(Controller<dim> &ctl);
+  virtual double update_linear_system(Controller<dim> &ctl){return 0.0};
+  virtual double update_newton_system(Controller<dim> &ctl);
   parallel::distributed::SolutionTransfer<dim, LA::MPI::Vector>
   prepare_refine();
   void post_refine(
@@ -43,8 +48,9 @@ public:
       Controller<dim> &ctl);
 
   /*
-   * Preconditioners
+   * Solver
    */
+  std::string update_scheme_timestep;
   LA::MPI::PreconditionAMG preconditioner;
   std::vector<std::vector<bool>> constant_modes;
 
@@ -78,7 +84,7 @@ AbstractField<dim>::AbstractField(const unsigned int n_components,
                                   std::string boundary_from,
                                   Controller<dim> &ctl)
     : fe(FE_Q<dim>(ctl.params.poly_degree), n_components),
-      dof_handler(ctl.triangulation) {
+      dof_handler(ctl.triangulation), update_scheme_timestep(update_scheme) {
   for (unsigned int d = 0; d < n_components; ++d) {
     component_masks.push_back(ComponentMask(n_components, false));
     component_masks[d].set(d, true);
@@ -151,6 +157,15 @@ template <int dim> void AbstractField<dim>::setup_system(Controller<dim> &ctl) {
   }
 }
 
+template <int dim> double AbstractField<dim>::update(Controller<dim> &ctl) {
+  if (update_scheme_timestep == "linear") {
+    return update_linear_system(ctl);
+  } else if (update_scheme_timestep == "newton") {
+    update_newton_system(ctl);
+    return 0.0;
+  }
+}
+
 template <int dim>
 void AbstractField<dim>::define_boundary_condition(
     const std::string boundary_from, Controller<dim> &ctl) {
@@ -198,7 +213,7 @@ void AbstractField<dim>::setup_boundary_condition(Controller<dim> &ctl) {
 }
 
 template <int dim>
-double AbstractField<dim>::newton_iteration(Controller<dim> &ctl) {
+double AbstractField<dim>::update_newton_system(Controller<dim> &ctl) {
   ctl.dcout << "It.\tResidual\tReduction\tLSrch\t\t#LinIts" << std::endl;
 
   // Decision whether the system matrix should be build
@@ -220,7 +235,7 @@ double AbstractField<dim>::newton_iteration(Controller<dim> &ctl) {
   distribute_all_constraints(distributed_solution, ctl);
   solution = distributed_solution;
   ctl.debug_dcout << "Solve Newton system - Newton iteration - first residual assemble" << std::endl;
-  assemble_system(true, ctl);
+  assemble_newton_system(true, ctl);
 
   double newton_residual = system_rhs.linfty_norm();
   double old_newton_residual = newton_residual*1e8;
@@ -244,7 +259,7 @@ double AbstractField<dim>::newton_iteration(Controller<dim> &ctl) {
     if (newton_step == 1 ||
         newton_residual / old_newton_residual > nonlinear_rho)
     {ctl.debug_dcout << "Solve Newton system - Newton iteration - system assemble" << std::endl;
-      assemble_system(false, ctl);}
+      assemble_newton_system(false, ctl);
 
     // Solve Ax = b
     ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear system" << std::endl;
@@ -260,7 +275,7 @@ double AbstractField<dim>::newton_iteration(Controller<dim> &ctl) {
       distribute_all_constraints(distributed_solution, ctl);
       solution = distributed_solution;
       ctl.debug_dcout << "Solve Newton system - Newton iteration - damping residual assemble" << std::endl;
-      assemble_system(true, ctl);
+      assemble_newton_system(true, ctl);
       new_newton_residual = system_rhs.linfty_norm();
 
       if (new_newton_residual < newton_residual)

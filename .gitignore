@@ -10,6 +10,7 @@
 /cmake-build-debug-docker
 /build*/
 /default.prm
+main
 .idea
 cmake-build-debug
 .vscode

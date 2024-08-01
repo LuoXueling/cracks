@@ -36,8 +36,8 @@ private:
 template <int dim>
 PhaseFieldFracture<dim>::PhaseFieldFracture(Parameters::AllParameters &prms)
     : AbstractMultiphysics<dim>(prms),
-      elasticity(dim, (this->ctl).params.boundary_from, this->ctl),
-      phasefield(this->ctl) {}
+      elasticity(dim, (this->ctl).params.boundary_from, "newton", this->ctl),
+      phasefield("newton", this->ctl) {}
 
 template <int dim> void PhaseFieldFracture<dim>::setup_system() {
   this->ctl.debug_dcout << "Initialize system - elasticity" << std::endl;
@@ -68,13 +68,13 @@ template <int dim> void PhaseFieldFracture<dim>::return_old_solution() {
 template <int dim> double PhaseFieldFracture<dim>::staggered_scheme() {
   (this->ctl).dcout << "Solve Newton system - staggered scheme - Solving elasticity" << std::endl;
   (this->ctl).computing_timer.enter_subsection("Solve elasticity");
-  double newton_reduction_elasticity = elasticity.newton_iteration(this->ctl);
+  double newton_reduction_elasticity = elasticity.update(this->ctl);
   (this->ctl).computing_timer.leave_subsection("Solve elasticity");
 
   if ((this->ctl).params.enable_phase_field) {
     (this->ctl).dcout << "Solve Newton system - staggered scheme - Solving phase field" << std::endl;
     (this->ctl).computing_timer.enter_subsection("Solve phase field");
-    double newton_reduction_phasefield = phasefield.newton_iteration(this->ctl);
+    double newton_reduction_phasefield = phasefield.update(this->ctl);
     phasefield.enforce_phase_field_limitation(this->ctl);
     (this->ctl).computing_timer.leave_subsection("Solve phase field");
     return std::max(newton_reduction_elasticity, newton_reduction_phasefield);

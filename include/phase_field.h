@@ -17,9 +17,9 @@ using namespace dealii;
 
 template <int dim> class PhaseField : public AbstractField<dim> {
 public:
-  explicit PhaseField(Controller<dim> &ctl);
+  PhaseField(std::string update_scheme, Controller<dim> &ctl);
 
-  void assemble_system(bool residual_only, Controller<dim> &ctl) override;
+  void assemble_newton_system(bool residual_only, Controller<dim> &ctl) override;
   unsigned int solve(Controller<dim> &ctl) override;
   void output_results(DataOut<dim> &data_out, Controller<dim> &ctl) override;
 
@@ -27,11 +27,11 @@ public:
 };
 
 template <int dim>
-PhaseField<dim>::PhaseField(Controller<dim> &ctl)
-    : AbstractField<dim>(1, "none", ctl) {}
+PhaseField<dim>::PhaseField(std::string update_scheme, Controller<dim> &ctl)
+    : AbstractField<dim>(1, "none", update_scheme, ctl) {}
 
 template <int dim>
-void PhaseField<dim>::assemble_system(bool residual_only,
+void PhaseField<dim>::assemble_newton_system(bool residual_only,
                                       Controller<dim> &ctl) {
   (this->system_rhs) = 0;
   (this->system_matrix) = 0;

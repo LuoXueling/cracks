@@ -17,10 +17,10 @@ using namespace dealii;
 
 template <int dim> class Elasticity : public AbstractField<dim> {
 public:
-  Elasticity(unsigned int n_components, std::string boundary_from,
+  Elasticity(unsigned int n_components, std::string boundary_from, std::string update_scheme,
              Controller<dim> &ctl);
 
-  void assemble_system(bool residual_only, Controller<dim> &ctl) override;
+  void assemble_newton_system(bool residual_only, Controller<dim> &ctl) override;
   unsigned int solve(Controller<dim> &ctl) override;
   void output_results(DataOut<dim> &data_out, Controller<dim> &ctl) override;
 
@@ -34,13 +34,13 @@ public:
 
 template <int dim>
 Elasticity<dim>::Elasticity(const unsigned int n_components,
-                            std::string boundary_from, Controller<dim> &ctl)
-    : AbstractField<dim>(n_components, boundary_from, ctl),
+                            std::string boundary_from, std::string update_scheme, Controller<dim> &ctl)
+    : AbstractField<dim>(n_components, boundary_from, update_scheme, ctl),
       constitutive_law(ctl.params.E, ctl.params.v, ctl.params.plane_state),
       stress(constitutive_law) {}
 
 template <int dim>
-void Elasticity<dim>::assemble_system(bool residual_only,
+void Elasticity<dim>::assemble_newton_system(bool residual_only,
                                       Controller<dim> &ctl) {
   (this->system_rhs) = 0;
   (this->system_matrix) = 0;
