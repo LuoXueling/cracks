@@ -19,8 +19,7 @@ public:
                                       Controller<dim> &ctl) {
     AssertThrow(false, ExcNotImplemented())
   };
-  virtual void assemble_linear_system(bool residual_only,
-                                      Controller<dim> &ctl) {
+  virtual void assemble_linear_system(Controller<dim> &ctl) {
     AssertThrow(false, ExcNotImplemented())
   };
   virtual unsigned int solve(Controller<dim> &ctl) {
@@ -41,7 +40,7 @@ public:
                                           Controller<dim> &ctl);
 
   virtual double update(Controller<dim> &ctl);
-  virtual double update_linear_system(Controller<dim> &ctl) { return 0.0; };
+  virtual double update_linear_system(Controller<dim> &ctl);
   virtual double update_newton_system(Controller<dim> &ctl);
   parallel::distributed::SolutionTransfer<dim, LA::MPI::Vector>
   prepare_refine();
@@ -78,7 +77,7 @@ public:
   //  LA::MPI::Vector system_total_residual;
   LA::MPI::Vector system_rhs;
   //  LA::MPI::Vector diag_mass, diag_mass_relevant;
-  LA::MPI::Vector increment;
+  LA::MPI::Vector system_solution;
 };
 
 template <int dim>
@@ -146,9 +145,9 @@ template <int dim> void AbstractField<dim>::setup_system(Controller<dim> &ctl) {
   {
     // solution has ghost elements.
     solution.reinit(locally_owned_dofs, locally_relevant_dofs, ctl.mpi_com);
-    // system_rhs, system_matrix, and the solution vector increment do not have
+    // system_rhs, system_matrix, and the solution vector system_solution do not have
     // ghost elements
-    increment.reinit(locally_owned_dofs, ctl.mpi_com);
+    system_solution.reinit(locally_owned_dofs, ctl.mpi_com);
     system_rhs.reinit(locally_owned_dofs, ctl.mpi_com);
     solution = 0;
     old_solution.reinit(locally_owned_dofs, locally_relevant_dofs, ctl.mpi_com);
@@ -213,6 +212,33 @@ void AbstractField<dim>::setup_boundary_condition(Controller<dim> &ctl) {
     }
   }
   constraints_all.close();
+}
+
+template <int dim>
+double AbstractField<dim>::update_linear_system(Controller<dim> &ctl) {
+  // Cannot distribute constraints to parallel vectors with ghost dofs.
+  LA::MPI::Vector distributed_solution(locally_owned_dofs, ctl.mpi_com);
+  distributed_solution = solution;
+
+  ctl.debug_dcout << "Solve linear system - initialize"
+                  << std::endl;
+  setup_boundary_condition(ctl);
+  distribute_all_constraints(distributed_solution, ctl);
+  solution = distributed_solution;
+  ctl.debug_dcout << "Solve linear system - assemble"
+                  << std::endl;
+  assemble_linear_system(ctl);
+
+  ctl.debug_dcout << "Solve linear system - solve"
+                  << std::endl;
+  solve(ctl);
+  ctl.debug_dcout << "Solve linear system - constraints"
+                  << std::endl;
+  distributed_solution = system_solution;
+  distribute_all_constraints(distributed_solution, ctl);
+  solution = distributed_solution;
+
+  return 0.0;
 }
 
 template <int dim>
@@ -285,7 +311,7 @@ double AbstractField<dim>::update_newton_system(Controller<dim> &ctl) {
       ctl.debug_dcout
           << "Solve Newton system - Newton iteration - start damping"
           << std::endl;
-      distributed_solution -= increment;
+      distributed_solution -= system_solution;
       ctl.debug_dcout
           << "Solve Newton system - Newton iteration - damping - distribute"
           << std::endl;
@@ -300,12 +326,12 @@ double AbstractField<dim>::update_newton_system(Controller<dim> &ctl) {
       if (new_newton_residual < newton_residual)
         break;
       else {
-        distributed_solution += increment;
+        distributed_solution += system_solution;
         distribute_all_constraints(distributed_solution, ctl);
         solution = distributed_solution;
       }
 
-      increment *= ctl.params.line_search_damping;
+      system_solution *= ctl.params.line_search_damping;
     }
     old_newton_residual = newton_residual;
     newton_residual = new_newton_residual;

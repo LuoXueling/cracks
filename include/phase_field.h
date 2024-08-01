@@ -21,6 +21,7 @@ public:
 
   void assemble_newton_system(bool residual_only,
                               Controller<dim> &ctl) override;
+  void assemble_linear_system(Controller<dim> &ctl) override;
   unsigned int solve(Controller<dim> &ctl) override;
   void output_results(DataOut<dim> &data_out, Controller<dim> &ctl) override;
 
@@ -30,6 +31,84 @@ public:
 template <int dim>
 PhaseField<dim>::PhaseField(std::string update_scheme, Controller<dim> &ctl)
     : AbstractField<dim>(1, "none", update_scheme, ctl) {}
+
+template <int dim>
+void PhaseField<dim>::assemble_linear_system(Controller<dim> &ctl) {
+  (this->system_rhs) = 0;
+  (this->system_matrix) = 0;
+
+  FEValues<dim> fe_values((this->fe), ctl.quadrature_formula,
+                          update_values | update_gradients |
+                              update_quadrature_points | update_JxW_values);
+
+  const unsigned int dofs_per_cell = (this->fe).n_dofs_per_cell();
+  const unsigned int n_q_points = ctl.quadrature_formula.size();
+
+  FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
+  Vector<double> cell_rhs(dofs_per_cell);
+
+  std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
+
+  // Old Newton values
+  std::vector<double> old_phasefield_values(n_q_points);
+  // Old Newton grads
+  std::vector<Tensor<1, dim>> old_phasefield_grads(n_q_points);
+
+  std::vector<double> Nphi_kq(dofs_per_cell);
+  std::vector<Tensor<1, dim>> Bphi_kq(dofs_per_cell);
+
+  for (const auto &cell : (this->dof_handler).active_cell_iterators())
+    if (cell->is_locally_owned()) {
+      cell_matrix = 0;
+      cell_rhs = 0;
+
+      fe_values.reinit(cell);
+
+      fe_values.get_function_values((this->solution), old_phasefield_values);
+      fe_values.get_function_gradients((this->solution), old_phasefield_grads);
+
+      // Get history
+      const std::vector<std::shared_ptr<PointHistory>> lqph =
+          ctl.quadrature_point_history.get_data(cell);
+      for (unsigned int q = 0; q < n_q_points; ++q) {
+        double H = lqph[q]->get("Driving force", 0.0);
+
+        // Values of fields and their derivatives
+        for (unsigned int k = 0; k < dofs_per_cell; ++k) {
+          Nphi_kq[k] = fe_values.shape_value(k, q);
+          Bphi_kq[k] = fe_values.shape_grad(k, q);
+        }
+
+        for (unsigned int i = 0; i < dofs_per_cell; ++i) {
+          for (unsigned int j = 0; j < dofs_per_cell; ++j) {
+            {
+              cell_matrix(i, j) +=
+                  (Nphi_kq[i] * Nphi_kq[j] * 2 * H +
+                   Bphi_kq[i] * Bphi_kq[j] * ctl.params.Gc * ctl.params.l_phi +
+                   Nphi_kq[i] * Nphi_kq[j] * ctl.params.Gc / ctl.params.l_phi) *
+                  fe_values.JxW(q);
+            }
+          }
+
+          cell_rhs(i) +=
+              (Nphi_kq[i] * (2 * H + std::abs(2 * H)) / 2) * fe_values.JxW(q);
+
+          lqph[q]->update("Phase field", old_phasefield_values[q]);
+        }
+      }
+
+      cell->get_dof_indices(local_dof_indices);
+      (this->constraints_all)
+          .distribute_local_to_global(cell_matrix, local_dof_indices,
+                                      (this->system_matrix));
+      (this->constraints_all)
+          .distribute_local_to_global(cell_rhs, local_dof_indices,
+                                      (this->system_rhs));
+    }
+
+  (this->system_matrix).compress(VectorOperation::add);
+  (this->system_rhs).compress(VectorOperation::add);
+}
 
 template <int dim>
 void PhaseField<dim>::assemble_newton_system(bool residual_only,
@@ -67,11 +146,10 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
       fe_values.get_function_values((this->solution), old_phasefield_values);
       fe_values.get_function_gradients((this->solution), old_phasefield_grads);
 
+      // Get history
+      const std::vector<std::shared_ptr<PointHistory>> lqph =
+          ctl.quadrature_point_history.get_data(cell);
       for (unsigned int q = 0; q < n_q_points; ++q) {
-        // Get history
-        const std::vector<std::shared_ptr<PointHistory>> lqph =
-            ctl.quadrature_point_history.get_data(cell);
-
         double H = lqph[q]->get("Driving force", 0.0);
 
         // Values of fields and their derivatives
@@ -101,6 +179,8 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
                     1 / ctl.params.l_phi * old_phasefield_values[q] *
                         Nphi_kq[i])) *
               fe_values.JxW(q);
+
+          lqph[q]->update("Phase field", old_phasefield_values[q]);
         }
       }
 
@@ -137,8 +217,8 @@ template <int dim> unsigned int PhaseField<dim>::solve(Controller<dim> &ctl) {
     (this->preconditioner).initialize((this->system_matrix), data);
   }
 
-  solver.solve((this->system_matrix), (this->increment), (this->system_rhs),
-               (this->preconditioner));
+  solver.solve((this->system_matrix), (this->system_solution),
+               (this->system_rhs), (this->preconditioner));
 
   return solver_control.last_step();
 }

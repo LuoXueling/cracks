@@ -85,11 +85,11 @@ void Elasticity<dim>::assemble_newton_system(bool residual_only,
       fe_values[displacement].get_function_gradients((this->solution),
                                                      old_displacement_grads);
 
+      const std::vector<std::shared_ptr<PointHistory>> lqph =
+          ctl.quadrature_point_history.get_data(cell);
+
       for (unsigned int q = 0; q < n_q_points; ++q) {
         // Get history
-        const std::vector<std::shared_ptr<PointHistory>> lqph =
-            ctl.quadrature_point_history.get_data(cell);
-
         double phasefield = lqph[q]->get("Phase field", 0.0);
         double degradation = pow(1 - phasefield, 2) + ctl.params.constant_k;
 
@@ -132,7 +132,7 @@ void Elasticity<dim>::assemble_newton_system(bool residual_only,
         }
 
         // Update history
-        lqph[q]->update("Driving force", 0.5 * scalar_product(stress_0, E));
+        lqph[q]->update("Driving force", 0.5 * scalar_product(stress_0, E), "max");
       }
 
       cell->get_dof_indices(local_dof_indices);
@@ -174,7 +174,7 @@ template <int dim> unsigned int Elasticity<dim>::solve(Controller<dim> &ctl) {
   ctl.debug_dcout
       << "Solve Newton system - Newton iteration - solve linear system - solve"
       << std::endl;
-  solver.solve((this->system_matrix), (this->increment), (this->system_rhs),
+  solver.solve((this->system_matrix), (this->system_solution), (this->system_rhs),
                (this->preconditioner));
   ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear "
                      "system - solve complete"
