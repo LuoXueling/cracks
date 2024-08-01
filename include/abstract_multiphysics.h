@@ -61,10 +61,12 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
             << std::endl;
   ctl.dcout << "Number of cores " << MultithreadInfo::n_cores() << std::endl;
 
+  ctl.dcout << "Set mesh" << std::endl;
   ctl.timer.enter_subsection("Set mesh");
   setup_mesh();
   ctl.timer.leave_subsection("Set mesh");
 
+  ctl.debug_dcout << "Initialize system" << std::endl;
   ctl.timer.enter_subsection("Initialize system");
   setup_system();
   ctl.timer.leave_subsection("Initialize system");
@@ -73,6 +75,7 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
   //    enforce_phase_field_limitation();
   //  }
 
+  ctl.dcout << "Solve Newton system" << std::endl;
   ctl.timer.enter_subsection("Solve Newton system");
   unsigned int refinement_cycle = 0;
   double finishing_timestep_loop = 0;
@@ -92,15 +95,15 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
     ctl.old_timestep = ctl.current_timestep;
 
   mesh_refine_checkpoint:
-    ctl.pcout << std::endl;
-    ctl.pcout << "\n=============================="
+    ctl.dcout << std::endl;
+    ctl.dcout << "\n=============================="
               << "=========================================" << std::endl;
-    ctl.pcout << "Time " << ctl.timestep_number << ": " << ctl.time << " ("
+    ctl.dcout << "Time " << ctl.timestep_number << ": " << ctl.time << " ("
               << ctl.current_timestep << ")" << "   "
               << "Cells: " << ctl.triangulation.n_global_active_cells();
-    ctl.pcout << "\n--------------------------------"
+    ctl.dcout << "\n--------------------------------"
               << "---------------------------------------" << std::endl;
-    ctl.pcout << std::endl;
+    ctl.dcout << std::endl;
 
     ctl.time += ctl.current_timestep;
 
@@ -109,9 +112,10 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
       // might not converge. To not abort the program we catch the
       // exception and retry with a smaller step.
       //          use_old_timestep_pf = false;
-
+      ctl.debug_dcout << "Solve Newton system - enter loop" << std::endl;
       record_old_solution();
       try {
+        ctl.debug_dcout << "Solve Newton system - staggered scheme" << std::endl;
         newton_reduction = staggered_scheme();
         while (newton_reduction > ctl.params.upper_newton_rho) {
           //              use_old_timestep_pf = true;
@@ -129,7 +133,7 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
         break;
 
       } catch (SolverControl::NoConvergence &e) {
-        ctl.pcout << "Solver did not converge! Adjusting time step."
+        ctl.dcout << "Solver did not converge! Adjusting time step."
                   << std::endl;
         ctl.time -= ctl.current_timestep;
         return_old_solution();
@@ -148,7 +152,7 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
     //      bool changed = refine_grid();
     //      if (changed) {
     //        // redo the current time step
-    //        ctl.pcout << "Mesh changed! Re-do the current time step" <<
+    //        ctl.dcout << "Mesh changed! Re-do the current time step" <<
     //        std::endl; ctl.time -= ctl.current_timestep; solution =
     //        old_solution; goto mesh_refine_checkpoint; continue;
     //      }
@@ -170,10 +174,10 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
 
     ctl.computing_timer.print_summary();
     ctl.computing_timer.reset();
-    ctl.pcout << std::endl;
+    ctl.dcout << std::endl;
   } while (ctl.timestep_number <= ctl.params.max_no_timesteps);
   ctl.timer.leave_subsection("Solve Newton system");
-  ctl.timer.manual_print_summary(ctl.dcout.fout);
+  ctl.timer.print_summary();
 }
 
 template <int dim> void AbstractMultiphysics<dim>::setup_mesh() {

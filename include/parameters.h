@@ -16,6 +16,7 @@ struct Project {
   std::string project_name;
   std::string load_sequence_from;
   bool enable_phase_field;
+  bool debug_output;
 
   static void declare_parameters(ParameterHandler &prm);
 
@@ -34,6 +35,8 @@ void Project::declare_parameters(ParameterHandler &prm) {
     prm.declare_entry("Load sequence from", "script",
                       Patterns::FileName(Patterns::FileName::FileType::input));
     prm.declare_entry("Enable phase field", "true", Patterns::Bool());
+
+    prm.declare_entry("Debug output", "false", Patterns::Bool());
   }
   prm.leave_subsection();
 }
@@ -46,6 +49,7 @@ void Project::parse_parameters(ParameterHandler &prm) {
     project_name = prm.get("Project name");
     load_sequence_from = prm.get("Load sequence from");
     enable_phase_field = prm.get_bool("Enable phase field");
+    debug_output = prm.get_bool("Debug output");
   }
   prm.leave_subsection();
 }
@@ -262,7 +266,6 @@ struct AllParameters : public FESystem,
 
   std::string output_dir;
   std::string param_dir;
-  std::string log_file;
 };
 
 AllParameters::AllParameters(const std::string &input_file) {
@@ -289,8 +292,6 @@ void AllParameters::set_parameters(const std::string &input_file) {
   output_dir = "./output/" + this->project_name + "-" + stime + "/";
 
   param_dir = input_file;
-
-  log_file = output_dir + "log.txt";
 }
 
 void AllParameters::declare_parameters(ParameterHandler &prm) {

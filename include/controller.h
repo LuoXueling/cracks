@@ -17,8 +17,7 @@ public:
   double get(std::string name, double default_value = 0.0) {
     try {
       return solution_dict[name];
-    }
-    catch (...) {
+    } catch (...) {
       return default_value;
     }
   };
@@ -37,9 +36,9 @@ public:
   QGauss<dim> quadrature_formula;
   Parameters::AllParameters params;
 
-  ConditionalOStream pcout;
-  DualOStream dcout;
-  DualTimerOutput timer;
+  ConditionalOStream dcout;
+  ConditionalOStream debug_dcout;
+  TimerOutput timer;
   TimerOutput computing_timer;
 
   double time;
@@ -60,10 +59,11 @@ Controller<dim>::Controller(Parameters::AllParameters &prms)
                                  Triangulation<dim>::smoothing_on_refinement |
                                  Triangulation<dim>::smoothing_on_coarsening)),
       quadrature_formula(prms.poly_degree + 1),
-      pcout(std::cout, (Utilities::MPI::this_mpi_process(mpi_com) == 0)),
-      dcout(pcout, params.log_file), timer(mpi_com, pcout, TimerOutput::never,
-                                           TimerOutput::cpu_and_wall_times),
-      computing_timer(mpi_com, pcout, TimerOutput::never,
+      dcout(std::cout, (Utilities::MPI::this_mpi_process(mpi_com) == 0)),
+      debug_dcout(std::cout, (Utilities::MPI::this_mpi_process(mpi_com) == 0)&&prms.debug_output),
+      timer(mpi_com, dcout, TimerOutput::never,
+            TimerOutput::cpu_and_wall_times),
+      computing_timer(mpi_com, dcout, TimerOutput::never,
                       TimerOutput::wall_times),
       time(0), timestep_number(0), current_timestep(0), old_timestep(0) {
   statistics.set_auto_fill_mode(true);

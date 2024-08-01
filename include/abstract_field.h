@@ -199,7 +199,7 @@ void AbstractField<dim>::setup_boundary_condition(Controller<dim> &ctl) {
 
 template <int dim>
 double AbstractField<dim>::newton_iteration(Controller<dim> &ctl) {
-  ctl.pcout << "It.\tResidual\tReduction\tLSrch\t\t#LinIts" << std::endl;
+  ctl.dcout << "It.\tResidual\tReduction\tLSrch\t\t#LinIts" << std::endl;
 
   // Decision whether the system matrix should be build
   // at each Newton step
@@ -215,9 +215,11 @@ double AbstractField<dim>::newton_iteration(Controller<dim> &ctl) {
 
   // Application of the initial boundary conditions to the
   // variational equations:
+  ctl.debug_dcout << "Solve Newton system - Newton iteration - initialize" << std::endl;
   setup_boundary_condition(ctl);
   distribute_all_constraints(distributed_solution, ctl);
   solution = distributed_solution;
+  ctl.debug_dcout << "Solve Newton system - Newton iteration - first residual assemble" << std::endl;
   assemble_system(true, ctl);
 
   double newton_residual = system_rhs.linfty_norm();
@@ -225,7 +227,7 @@ double AbstractField<dim>::newton_iteration(Controller<dim> &ctl) {
   unsigned int newton_step = 1;
   unsigned int no_linear_iterations = 0;
 
-  ctl.pcout << "0\t" << std::scientific << newton_residual << std::endl;
+  ctl.dcout << "0\t" << std::scientific << newton_residual << std::endl;
 
   while (newton_residual > ctl.params.lower_bound_newton_residual &&
          newton_step < ctl.params.max_no_newton_steps) {
@@ -235,24 +237,29 @@ double AbstractField<dim>::newton_iteration(Controller<dim> &ctl) {
 //    newton_residual = system_rhs.linfty_norm();
 
     if (newton_residual < ctl.params.lower_bound_newton_residual) {
-      ctl.pcout << '\t' << std::scientific << newton_residual << std::endl;
+      ctl.dcout << '\t' << std::scientific << newton_residual << std::endl;
       break;
     }
 
     if (newton_step == 1 ||
         newton_residual / old_newton_residual > nonlinear_rho)
-      assemble_system(false, ctl);
+    {ctl.debug_dcout << "Solve Newton system - Newton iteration - system assemble" << std::endl;
+      assemble_system(false, ctl);}
 
     // Solve Ax = b
+    ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear system" << std::endl;
     no_linear_iterations = solve(ctl);
-
+    ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear system exit" << std::endl;
     line_search_step = 0;
     // Relaxation
     for (; line_search_step < ctl.params.max_no_line_search_steps;
          ++line_search_step) {
+      ctl.debug_dcout << "Solve Newton system - Newton iteration - start damping" << std::endl;
       distributed_solution -= increment;
+      ctl.debug_dcout << "Solve Newton system - Newton iteration - damping - distribute" << std::endl;
       distribute_all_constraints(distributed_solution, ctl);
       solution = distributed_solution;
+      ctl.debug_dcout << "Solve Newton system - Newton iteration - damping residual assemble" << std::endl;
       assemble_system(true, ctl);
       new_newton_residual = system_rhs.linfty_norm();
 
@@ -269,18 +276,18 @@ double AbstractField<dim>::newton_iteration(Controller<dim> &ctl) {
     old_newton_residual = newton_residual;
     newton_residual = new_newton_residual;
 
-    ctl.pcout << std::setprecision(5) << newton_step << '\t' << std::scientific
+    ctl.dcout << std::setprecision(5) << newton_step << '\t' << std::scientific
               << newton_residual;
 
-    ctl.pcout << '\t' << std::scientific
+    ctl.dcout << '\t' << std::scientific
               << newton_residual / old_newton_residual << '\t';
 
     if (newton_step == 1 ||
         newton_residual / old_newton_residual > nonlinear_rho)
-      ctl.pcout << "rebuild" << '\t';
+      ctl.dcout << "rebuild" << '\t';
     else
-      ctl.pcout << " " << '\t';
-    ctl.pcout << line_search_step << '\t' << std::scientific
+      ctl.dcout << " " << '\t';
+    ctl.dcout << line_search_step << '\t' << std::scientific
               << no_linear_iterations << '\t' << std::scientific << std::endl;
 
     // Terminate if nothing is solved anymore. After this,
@@ -296,7 +303,7 @@ double AbstractField<dim>::newton_iteration(Controller<dim> &ctl) {
 
   if ((newton_residual > ctl.params.lower_bound_newton_residual) &&
       (newton_step == ctl.params.max_no_newton_steps)) {
-    ctl.pcout << "Newton iteration did not converge in " << newton_step
+    ctl.dcout << "Newton iteration did not converge in " << newton_step
               << " steps :-(" << std::endl;
     throw SolverControl::NoConvergence(0, 0);
   }
