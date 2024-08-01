@@ -15,8 +15,6 @@ skip_compile="${skip_compile:-false}"
 
 if [ "$skip_compile" = "true" ]; then
    cd "$path"
-   cd ..
-   cp "$path/main" ./main
    mpirun -n "$nprocesses" ./main
 else
    rm -rf "$path"
@@ -25,7 +23,5 @@ else
    cmake ..
    make "$release_or_debug"
    make
-   cd ..
-   cp "$path/main" ./main
    mpirun --oversubscribe -n "$nprocesses" ./main 
 fi

@@ -97,12 +97,12 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
   mesh_refine_checkpoint:
     ctl.dcout << std::endl;
     ctl.dcout << "\n=============================="
-              << "=========================================" << std::endl;
+              << "===========================================" << std::endl;
     ctl.dcout << "Time " << ctl.timestep_number << ": " << ctl.time << " ("
               << ctl.current_timestep << ")" << "   "
               << "Cells: " << ctl.triangulation.n_global_active_cells();
     ctl.dcout << "\n--------------------------------"
-              << "---------------------------------------" << std::endl;
+              << "-----------------------------------------" << std::endl;
     ctl.dcout << std::endl;
 
     ctl.time += ctl.current_timestep;

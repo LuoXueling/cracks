@@ -27,12 +27,12 @@ int main(int argc, char *argv[]) {
     if (argc == 2)
       params.set_parameters(argv[1]);
     else
-      params.set_parameters("parameters/test.prm");
+      params.set_parameters("../parameters/test.prm");
 
     if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0) {
       // prepare directories
       std::string command;
-      command = "mkdir output";
+      command = "mkdir " + params.output_dir_top;
       system(command.c_str());
       command = "mkdir " + params.output_dir;
       system(command.c_str());

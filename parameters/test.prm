@@ -1,7 +1,8 @@
 subsection Project
   set Project name = singleNotchTension
-  set Mesh from = meshes/singleNotchDense.inp
-  set Boundary from = meshes/singleNotchTension_boundary.txt
+  set Mesh from = ../meshes/singleNotchDense.inp
+  set Boundary from = ../meshes/singleNotchTension_boundary.txt
+  set Output directory = ../output/
   set Load sequence from = script
   set Enable phase field = true
 

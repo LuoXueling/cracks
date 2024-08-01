@@ -14,6 +14,7 @@ struct Project {
   std::string mesh_from;
   std::string boundary_from;
   std::string project_name;
+  std::string output_dir_top;
   std::string load_sequence_from;
   bool enable_phase_field;
   bool debug_output;
@@ -32,6 +33,8 @@ void Project::declare_parameters(ParameterHandler &prm) {
                       Patterns::FileName(Patterns::FileName::FileType::input));
     prm.declare_entry("Project name", "Default project",
                       Patterns::FileName(Patterns::FileName::FileType::output));
+    prm.declare_entry("Output directory", "../output/",
+                      Patterns::FileName(Patterns::FileName::FileType::input));
     prm.declare_entry("Load sequence from", "script",
                       Patterns::FileName(Patterns::FileName::FileType::input));
     prm.declare_entry("Enable phase field", "true", Patterns::Bool());
@@ -47,6 +50,7 @@ void Project::parse_parameters(ParameterHandler &prm) {
     mesh_from = prm.get("Mesh from");
     boundary_from = prm.get("Boundary from");
     project_name = prm.get("Project name");
+    output_dir_top = prm.get("Output directory");
     load_sequence_from = prm.get("Load sequence from");
     enable_phase_field = prm.get_bool("Enable phase field");
     debug_output = prm.get_bool("Debug output");
@@ -198,7 +202,7 @@ void Material::parse_parameters(ParameterHandler &prm) {
   lame_coefficient_lambda = (2 * v * lame_coefficient_mu) / (1.0 - 2 * v);
 }
 
-struct FESystem {
+struct FESystemInfo {
   unsigned int dim;
   unsigned int poly_degree;
   unsigned int quad_order;
@@ -213,7 +217,7 @@ struct FESystem {
   void parse_parameters(ParameterHandler &prm);
 };
 
-void FESystem::declare_parameters(ParameterHandler &prm) {
+void FESystemInfo::declare_parameters(ParameterHandler &prm) {
   prm.enter_subsection("Finite element system");
   {
     prm.declare_entry("Physical dimension", "2", Patterns::Integer(0),
@@ -235,7 +239,7 @@ void FESystem::declare_parameters(ParameterHandler &prm) {
   prm.leave_subsection();
 }
 
-void FESystem::parse_parameters(ParameterHandler &prm) {
+void FESystemInfo::parse_parameters(ParameterHandler &prm) {
   prm.enter_subsection("Finite element system");
   {
     dim = prm.get_integer("Physical dimension");
@@ -251,7 +255,7 @@ void FESystem::parse_parameters(ParameterHandler &prm) {
   prm.leave_subsection();
 }
 
-struct AllParameters : public FESystem,
+struct AllParameters : public FESystemInfo,
                        public Project,
                        public Runtime,
                        public Material {
@@ -288,20 +292,20 @@ void AllParameters::set_parameters(const std::string &input_file) {
   strtime << tAll;
   stime = strtime.str();
 
-  output_dir = "./output/" + this->project_name + "-" + stime + "/";
+  output_dir = output_dir_top + this->project_name + "-" + stime + "/";
 
   param_dir = input_file;
 }
 
 void AllParameters::declare_parameters(ParameterHandler &prm) {
-  FESystem::declare_parameters(prm);
+  FESystemInfo::declare_parameters(prm);
   Project::declare_parameters(prm);
   Runtime::declare_parameters(prm);
   Material::declare_parameters(prm);
 }
 
 void AllParameters::parse_parameters(ParameterHandler &prm) {
-  FESystem::parse_parameters(prm);
+  FESystemInfo::parse_parameters(prm);
   Project::parse_parameters(prm);
   Runtime::parse_parameters(prm);
   Material::parse_parameters(prm);
