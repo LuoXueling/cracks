@@ -205,22 +205,29 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
 
 template <int dim> unsigned int PhaseField<dim>::solve(Controller<dim> &ctl) {
 
-  SolverControl solver_control((this->dof_handler).n_dofs(),
-                               1e-8 * (this->system_rhs).l2_norm());
-  SolverGMRES<LA::MPI::Vector> solver(solver_control);
-  {
-    LA::MPI::PreconditionAMG::AdditionalData data;
-    data.elliptic = true;
-    data.higher_order_elements = true;
-    data.smoother_sweeps = 2;
-    data.aggregation_threshold = 0.02;
-    (this->preconditioner).initialize((this->system_matrix), data);
+  if (ctl.params.direct_solver){
+    SolverControl solver_control;
+    TrilinosWrappers::SolverDirect solver(solver_control);
+    solver.solve(this->system_matrix, this->system_solution,
+                 this->system_rhs);
+    return 1;
+  } else {
+    SolverControl solver_control((this->dof_handler).n_dofs(),
+                                 1e-8 * (this->system_rhs).l2_norm());
+    SolverGMRES<LA::MPI::Vector> solver(solver_control);
+    {
+      LA::MPI::PreconditionAMG::AdditionalData data;
+      data.elliptic = true;
+      data.higher_order_elements = true;
+      data.smoother_sweeps = 2;
+      data.aggregation_threshold = 0.02;
+      (this->preconditioner).initialize((this->system_matrix), data);
+    }
+
+    solver.solve((this->system_matrix), (this->system_solution),
+                 (this->system_rhs), (this->preconditioner));
+    return solver_control.last_step();
   }
-
-  solver.solve((this->system_matrix), (this->system_solution),
-               (this->system_rhs), (this->preconditioner));
-
-  return solver_control.last_step();
 }
 
 template <int dim>
