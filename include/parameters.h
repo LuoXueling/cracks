@@ -70,10 +70,8 @@ struct Runtime {
   double upper_newton_rho;
   unsigned int max_no_line_search_steps;
   double line_search_damping;
-  std::string decompose_stress_rhs_u;
-  std::string decompose_stress_matrix_u;
-  std::string decompose_energy_phi;
   std::string phase_field_scheme;
+  std::string decomposition;
   double constant_k;
   unsigned int save_vtk_per_step;
 
@@ -105,16 +103,11 @@ void Runtime::subsection_declare_parameters(ParameterHandler &prm) {
 
     prm.declare_entry("Line search damping", "0.5", Patterns::Double(0));
 
-    prm.declare_entry("Decompose stress in rhs of displacement", "spectral",
-                      Patterns::Selection("spectral|none"));
     prm.declare_entry("Phase field update", "newton",
                       Patterns::Selection("newton|linear"));
 
-    prm.declare_entry("Decompose stress in matrix of displacement", "spectral",
-                      Patterns::Selection("spectral|none"));
-
-    prm.declare_entry("Decompose energy in phase field", "spectral",
-                      Patterns::Selection("spectral|none"));
+    prm.declare_entry("Decomposition", "hybrid",
+                      Patterns::Selection("none|hybrid|sphere|eigen"));
 
     prm.declare_entry("Constant small quantity k", "1.0e-6",
                       Patterns::Double(0));
@@ -147,15 +140,8 @@ void Runtime::subsection_parse_parameters(ParameterHandler &prm) {
     max_no_line_search_steps = prm.get_integer("Line search maximum steps");
     line_search_damping = prm.get_double("Line search damping");
 
-    // Decompose stress in plus (tensile) and minus (compression)
-    // 0.0: no decomposition, 1.0: with decomposition
-    // Motivation see Miehe et al. (2010)
-    decompose_stress_rhs_u = prm.get("Decompose stress in rhs of displacement");
-    decompose_stress_matrix_u =
-        prm.get("Decompose stress in matrix of displacement");
-
-    decompose_energy_phi = prm.get("Decompose energy in phase field");
     phase_field_scheme = prm.get("Phase field update");
+    decomposition = prm.get("Decomposition");
 
     constant_k = prm.get_double("Constant small quantity k");
 
@@ -253,8 +239,8 @@ void FESystemInfo::subsection_parse_parameters(ParameterHandler &prm) {
         prm.get_double("Phase field final influential ratio (for refinement)");
     refine_influence_initial = prm.get_double(
         "Phase field initial influential ratio (for refinement)");
-    refine_minimum_size_ratio = prm.get_double(
-        "Minimum relative size of refined cells w.r.t l_phi");
+    refine_minimum_size_ratio =
+        prm.get_double("Minimum relative size of refined cells w.r.t l_phi");
   }
   prm.leave_subsection();
 }

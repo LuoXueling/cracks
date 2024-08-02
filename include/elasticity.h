@@ -8,6 +8,7 @@
 #include "abstract_field.h"
 #include "constitutive_law.h"
 #include "dealii_includes.h"
+#include "decomposition.h"
 #include "parameters.h"
 #include "post_processors.h"
 #include "utils.h"
@@ -74,6 +75,10 @@ void Elasticity<dim>::assemble_newton_system(bool residual_only,
   Tensor<2, dim> zero_matrix;
   zero_matrix.clear();
 
+  // Determine decomposition
+  std::unique_ptr<Decomposition<dim>> decomposition =
+      select_decomposition<dim>(ctl.params.decomposition);
+
   for (const auto &cell : (this->dof_handler).active_cell_iterators())
     if (cell->is_locally_owned()) {
       cell_matrix = 0;
@@ -113,6 +118,29 @@ void Elasticity<dim>::assemble_newton_system(bool residual_only,
         SymmetricTensor<4, dim> elasticity_tensor;
         constitutive_law.get_stress_strain_tensor(E, strain_symm, stress_0,
                                                   elasticity_tensor);
+        double energy_positive;
+        double energy_negative;
+        SymmetricTensor<2, dim> stress_positive;
+        SymmetricTensor<2, dim> stress_negative;
+        SymmetricTensor<4, dim> elasticity_tensor_positive;
+        SymmetricTensor<4, dim> elasticity_tensor_negative;
+
+        if (!residual_only) {
+          decomposition->decompose_elasticity_tensor_stress_and_energy(
+              strain_symm, stress_0, elasticity_tensor, energy_positive,
+              energy_negative, stress_positive, stress_negative,
+              elasticity_tensor_positive, elasticity_tensor_negative,
+              constitutive_law);
+        } else {
+          decomposition->decompose_stress_and_energy(
+              strain_symm, stress_0, energy_positive, energy_negative,
+              stress_positive, stress_negative, constitutive_law);
+        }
+
+        // Solution B (without split):
+        // Tensor<2, dim> stress_0 = constitutive_law.lambda * tr_E * Identity +
+        //                                  2 * constitutive_law.mu * E;
+        // const double tr_E = trace(E);
 
         for (unsigned int i = 0; i < dofs_per_cell; ++i) {
           // Solution B (without split):
@@ -121,11 +149,13 @@ void Elasticity<dim>::assemble_newton_system(bool residual_only,
             for (unsigned int j = 0; j < dofs_per_cell; ++j) {
               {
                 cell_matrix(i, j) +=
-                    degradation *
                     // Solution A:
-                    (Bu_kq_symmetric[i] * elasticity_tensor *
+                    (Bu_kq_symmetric[i] *
+                     (degradation * elasticity_tensor_positive +
+                      elasticity_tensor_negative) *
                      Bu_kq_symmetric[j]) *
                     // Solution B (without split):
+                    // degradation *
                     // (scalar_product(constitutive_law.lambda *
                     //                         Bu_kq_symmetric_tr * Identity +
                     //                    2 * constitutive_law.mu *
@@ -136,12 +166,14 @@ void Elasticity<dim>::assemble_newton_system(bool residual_only,
             }
           }
 
-          cell_rhs(i) += degradation * (scalar_product(Bu_kq[i], stress_0) *
-                                        fe_values.JxW(q));
+          cell_rhs(i) +=
+              scalar_product(Bu_kq[i],
+                             degradation * stress_positive + stress_negative) *
+              fe_values.JxW(q);
         }
 
         // Update history
-        lqph[q]->update("Driving force", 0.5 * scalar_product(stress_0, E), "max");
+        lqph[q]->update("Driving force", energy_positive, "max");
       }
 
       cell->get_dof_indices(local_dof_indices);
@@ -167,8 +199,7 @@ template <int dim> unsigned int Elasticity<dim>::solve(Controller<dim> &ctl) {
   if (ctl.params.direct_solver) {
     SolverControl solver_control;
     TrilinosWrappers::SolverDirect solver(solver_control);
-    solver.solve(this->system_matrix, this->system_solution,
-                 this->system_rhs);
+    solver.solve(this->system_matrix, this->system_solution, this->system_rhs);
     return 1;
   } else {
     SolverControl solver_control((this->dof_handler).n_dofs(),
@@ -237,6 +268,9 @@ template <int dim> void Elasticity<dim>::compute_load(Controller<dim> &ctl) {
 
   const Tensor<2, dim> Identity = Tensors::get_Identity<dim>();
 
+  std::unique_ptr<Decomposition<dim>> decomposition =
+      select_decomposition<dim>(ctl.params.decomposition);
+
   typename DoFHandler<dim>::active_cell_iterator cell = (this->dof_handler)
                                                             .begin_active(),
                                                  endc =
@@ -267,12 +301,25 @@ template <int dim> void Elasticity<dim>::compute_load(Controller<dim> &ctl) {
             const Tensor<2, dim> E = 0.5 * (grad_u + transpose(grad_u));
             const double tr_E = trace(E);
 
-            Tensor<2, dim> stress_term;
-            stress_term = degradation * (constitutive_law.lambda * tr_E * Identity +
-                          2 * constitutive_law.mu * E);
+            SymmetricTensor<2, dim> strain_symm;
+            SymmetricTensor<2, dim> stress_0;
+            SymmetricTensor<4, dim> elasticity_tensor;
+            constitutive_law.get_stress_strain_tensor(E, strain_symm, stress_0,
+                                                      elasticity_tensor);
+            double energy_positive;
+            double energy_negative;
+            SymmetricTensor<2, dim> stress_positive;
+            SymmetricTensor<2, dim> stress_negative;
+            SymmetricTensor<4, dim> elasticity_tensor_positive;
+            SymmetricTensor<4, dim> elasticity_tensor_negative;
+
+            decomposition->decompose_stress_and_energy(
+                strain_symm, stress_0, energy_positive, energy_negative,
+                stress_positive, stress_negative, constitutive_law);
 
             load_value[cell->face(face)->boundary_id()] +=
-                stress_term * fe_face_values.normal_vector(q_point) *
+                degradation * stress_positive *
+                fe_face_values.normal_vector(q_point) *
                 fe_face_values.JxW(q_point);
           }
         }

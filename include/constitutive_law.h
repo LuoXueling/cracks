@@ -41,14 +41,6 @@ ConstitutiveLaw<dim>::ConstitutiveLaw(double E_in, double nu_in,
   if (dim == 3) {
     lambda = E * nu / (1 + nu) / (1 - 2 * nu);
     kappa = kappa_3d;
-    stress_strain_tensor_kappa =
-        kappa * outer_product(unit_symmetric_tensor<dim>(),
-                              unit_symmetric_tensor<dim>());
-    stress_strain_tensor_mu =
-        2 * mu *
-        (identity_tensor<dim>() - outer_product(unit_symmetric_tensor<dim>(),
-                                                unit_symmetric_tensor<dim>()) /
-                                      3.0);
   } else if (dim == 2) {
     lambda = E * nu / (1 + nu) /
              (1 - 2 * nu); // This is actually wrong for 2D. But since everyone
@@ -59,21 +51,22 @@ ConstitutiveLaw<dim>::ConstitutiveLaw(double E_in, double nu_in,
       kappa = kappa_3d + mu / 3; // kappa = E / (2 * (1 - nu))
     }
     //    kappa = E / (2 * (1 - nu));
-    stress_strain_tensor_kappa =
-        kappa * outer_product(unit_symmetric_tensor<dim>(),
-                              unit_symmetric_tensor<dim>());
-    stress_strain_tensor_mu =
-        2 * mu *
-        (identity_tensor<dim>() - outer_product(unit_symmetric_tensor<dim>(),
-                                                unit_symmetric_tensor<dim>()) /
-                                      2);
   } else
     AssertThrow(false, ExcNotImplemented());
+  stress_strain_tensor_kappa =
+      kappa * outer_product(unit_symmetric_tensor<dim>(),
+                            unit_symmetric_tensor<dim>());
+  stress_strain_tensor_mu =
+      2 * mu *
+      (identity_tensor<dim>() - outer_product(unit_symmetric_tensor<dim>(),
+                                              unit_symmetric_tensor<dim>()) /
+                                    dim);
 }
 
 template <int dim>
 void ConstitutiveLaw<dim>::get_stress_strain_tensor(
-    const Tensor<2, dim> &strain_tensor, SymmetricTensor<2, dim> &E_symm, SymmetricTensor<2, dim> &stress_tensor,
+    const Tensor<2, dim> &strain_tensor, SymmetricTensor<2, dim> &E_symm,
+    SymmetricTensor<2, dim> &stress_tensor,
     SymmetricTensor<4, dim> &elasticity_tensor) const {
 
   for (int i = 0; i < dim; ++i) {

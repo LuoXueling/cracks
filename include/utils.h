@@ -61,8 +61,8 @@ get_grad_u(unsigned int q,
   return grad_u;
 }
 
-template <int dim> inline Tensor<2, dim> get_Identity() {
-  Tensor<2, dim> identity;
+template <int dim> inline SymmetricTensor<2, dim> get_Identity() {
+  SymmetricTensor<2, dim> identity;
   identity[0][0] = 1.0;
   identity[1][1] = 1.0;
   if (dim == 3)
@@ -156,7 +156,7 @@ template <int dim> inline double get_divergence_u(const Tensor<2, dim> grad_u) {
 
 template <int dim>
 void tensor_product(Tensor<2, dim> &kronecker, const Tensor<1, dim> &x,
-                              const Tensor<1, dim> &y) {
+                    const Tensor<1, dim> &y) {
   for (int i = 0; i < dim; ++i) {
     for (int j = 0; j < dim; ++j) {
       kronecker[i][j] = x[i] * y[j];
