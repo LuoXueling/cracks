@@ -19,12 +19,12 @@ struct Project {
   bool enable_phase_field;
   bool debug_output;
 
-  static void declare_parameters(ParameterHandler &prm);
+  static void subsection_declare_parameters(ParameterHandler &prm);
 
-  void parse_parameters(ParameterHandler &prm);
+  void subsection_parse_parameters(ParameterHandler &prm);
 };
 
-void Project::declare_parameters(ParameterHandler &prm) {
+void Project::subsection_declare_parameters(ParameterHandler &prm) {
   prm.enter_subsection("Project");
   {
     prm.declare_entry("Mesh from", "script",
@@ -44,7 +44,7 @@ void Project::declare_parameters(ParameterHandler &prm) {
   prm.leave_subsection();
 }
 
-void Project::parse_parameters(ParameterHandler &prm) {
+void Project::subsection_parse_parameters(ParameterHandler &prm) {
   prm.enter_subsection("Project");
   {
     mesh_from = prm.get("Mesh from");
@@ -77,12 +77,12 @@ struct Runtime {
   double constant_k;
   unsigned int save_vtk_per_step;
 
-  static void declare_parameters(ParameterHandler &prm);
+  static void subsection_declare_parameters(ParameterHandler &prm);
 
-  void parse_parameters(ParameterHandler &prm);
+  void subsection_parse_parameters(ParameterHandler &prm);
 };
 
-void Runtime::declare_parameters(ParameterHandler &prm) {
+void Runtime::subsection_declare_parameters(ParameterHandler &prm) {
   prm.enter_subsection("Runtime");
   {
     prm.declare_entry("Max load step", "10", Patterns::Integer(1));
@@ -123,7 +123,7 @@ void Runtime::declare_parameters(ParameterHandler &prm) {
   prm.leave_subsection();
 }
 
-void Runtime::parse_parameters(ParameterHandler &prm) {
+void Runtime::subsection_parse_parameters(ParameterHandler &prm) {
   prm.enter_subsection("Runtime");
   {
     max_load_step = prm.get_integer("Max load step");
@@ -175,12 +175,12 @@ struct Material {
   double lame_coefficient_lambda;
   std::string plane_state;
 
-  static void declare_parameters(ParameterHandler &prm);
+  static void subsection_declare_parameters(ParameterHandler &prm);
 
-  void parse_parameters(ParameterHandler &prm);
+  void subsection_parse_parameters(ParameterHandler &prm);
 };
 
-void Material::declare_parameters(ParameterHandler &prm) {
+void Material::subsection_declare_parameters(ParameterHandler &prm) {
   prm.enter_subsection("Material");
   {
     prm.declare_entry("Young's modulus", "1000", Patterns::Double(0));
@@ -193,7 +193,7 @@ void Material::declare_parameters(ParameterHandler &prm) {
   prm.leave_subsection();
 }
 
-void Material::parse_parameters(ParameterHandler &prm) {
+void Material::subsection_parse_parameters(ParameterHandler &prm) {
   prm.enter_subsection("Material");
   {
     E = prm.get_double("Young's modulus");
@@ -216,12 +216,12 @@ struct FESystemInfo {
   unsigned int n_refinement_cycles;
   double value_phase_field_for_refinement;
 
-  static void declare_parameters(ParameterHandler &prm);
+  static void subsection_declare_parameters(ParameterHandler &prm);
 
-  void parse_parameters(ParameterHandler &prm);
+  void subsection_parse_parameters(ParameterHandler &prm);
 };
 
-void FESystemInfo::declare_parameters(ParameterHandler &prm) {
+void FESystemInfo::subsection_declare_parameters(ParameterHandler &prm) {
   prm.enter_subsection("Finite element system");
   {
     prm.declare_entry("Physical dimension", "2", Patterns::Integer(0),
@@ -243,7 +243,7 @@ void FESystemInfo::declare_parameters(ParameterHandler &prm) {
   prm.leave_subsection();
 }
 
-void FESystemInfo::parse_parameters(ParameterHandler &prm) {
+void FESystemInfo::subsection_parse_parameters(ParameterHandler &prm) {
   prm.enter_subsection("Finite element system");
   {
     dim = prm.get_integer("Physical dimension");
@@ -263,7 +263,7 @@ struct AllParameters : public FESystemInfo,
                        public Project,
                        public Runtime,
                        public Material {
-  AllParameters(){};
+  AllParameters() = default;
   AllParameters(const std::string &input_file);
 
   static void declare_parameters(ParameterHandler &prm);
@@ -302,17 +302,17 @@ void AllParameters::set_parameters(const std::string &input_file) {
 }
 
 void AllParameters::declare_parameters(ParameterHandler &prm) {
-  FESystemInfo::declare_parameters(prm);
-  Project::declare_parameters(prm);
-  Runtime::declare_parameters(prm);
-  Material::declare_parameters(prm);
+  FESystemInfo::subsection_declare_parameters(prm);
+  Project::subsection_declare_parameters(prm);
+  Runtime::subsection_declare_parameters(prm);
+  Material::subsection_declare_parameters(prm);
 }
 
 void AllParameters::parse_parameters(ParameterHandler &prm) {
-  FESystemInfo::parse_parameters(prm);
-  Project::parse_parameters(prm);
-  Runtime::parse_parameters(prm);
-  Material::parse_parameters(prm);
+  FESystemInfo::subsection_parse_parameters(prm);
+  Project::subsection_parse_parameters(prm);
+  Runtime::subsection_parse_parameters(prm);
+  Material::subsection_parse_parameters(prm);
 }
 } // namespace Parameters
 

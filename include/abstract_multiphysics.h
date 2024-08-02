@@ -94,7 +94,6 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
     double tmp_current_timestep = ctl.current_timestep;
     ctl.old_timestep = ctl.current_timestep;
 
-  mesh_refine_checkpoint:
     ctl.dcout << std::endl;
     ctl.dcout << "\n=============================="
               << "===========================================" << std::endl;
@@ -142,22 +141,6 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
         ctl.time += ctl.current_timestep;
       }
     } while (true);
-
-    //    LA::MPI::Vector distributed_solution(elasticity.locally_owned_dofs,
-    //    ctl.mpi_com); distributed_solution = elasolution;
-    //    elasticity.distribute_hanging_node_constraints(distributed_solution,
-    //    ctl);
-
-    // Refine mesh and return to the beginning if mesh is changed.
-    //    if (ctl.params.refine) {
-    //      bool changed = refine_grid();
-    //      if (changed) {
-    //        // redo the current time step
-    //        ctl.dcout << "Mesh changed! Re-do the current time step" <<
-    //        std::endl; ctl.time -= ctl.current_timestep; solution =
-    //        old_solution; goto mesh_refine_checkpoint; continue;
-    //      }
-    //    }
 
     // Recover time step
     ctl.current_timestep = tmp_current_timestep;
