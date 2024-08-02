@@ -69,6 +69,7 @@ void Elasticity<dim>::assemble_newton_system(bool residual_only,
 
   std::vector<Tensor<1, dim>> Nu_kq(dofs_per_cell);
   std::vector<Tensor<2, dim>> Bu_kq(dofs_per_cell);
+  std::vector<SymmetricTensor<2, dim>> Bu_kq_symmetric(dofs_per_cell);
 
   Tensor<2, dim> zero_matrix;
   zero_matrix.clear();
@@ -97,31 +98,39 @@ void Elasticity<dim>::assemble_newton_system(bool residual_only,
         for (unsigned int k = 0; k < dofs_per_cell; ++k) {
           Nu_kq[k] = fe_values[displacement].value(k, q);
           Bu_kq[k] = fe_values[displacement].gradient(k, q);
+          Bu_kq_symmetric[k] = fe_values[displacement].symmetric_gradient(k, q);
+          // equivalent to:
+          // 0.5 * (Bu_kq[k] + transpose(Bu_kq[k]));
         }
         const Tensor<2, dim> grad_u = old_displacement_grads[q];
         const double divergence_u = Tensors::get_divergence_u<dim>(grad_u);
         const Tensor<2, dim> Identity = Tensors ::get_Identity<dim>();
         const Tensor<2, dim> E = 0.5 * (grad_u + transpose(grad_u));
-        const double tr_E = trace(E);
-        Tensor<2, dim> stress_0 = constitutive_law.lambda * tr_E * Identity +
-                                  2 * constitutive_law.mu * E;
+
+        // Solution A:
+        SymmetricTensor<2, dim> strain_symm;
+        SymmetricTensor<2, dim> stress_0;
+        SymmetricTensor<4, dim> elasticity_tensor;
+        constitutive_law.get_stress_strain_tensor(E, strain_symm, stress_0,
+                                                  elasticity_tensor);
 
         for (unsigned int i = 0; i < dofs_per_cell; ++i) {
-          const Tensor<2, dim> Bu_iq_symmetric =
-              0.5 * (Bu_kq[i] + transpose(Bu_kq[i]));
-          const double Bu_iq_symmetric_tr = trace(Bu_iq_symmetric);
-
+          // Solution B (without split):
+          // const double Bu_kq_symmetric_tr = trace(Bu_kq_symmetric[i]);
           if (!residual_only) {
-
             for (unsigned int j = 0; j < dofs_per_cell; ++j) {
               {
                 cell_matrix(i, j) +=
                     degradation *
-                    (scalar_product(constitutive_law.lambda *
-                                            Bu_iq_symmetric_tr * Identity +
-                                        2 * constitutive_law.mu *
-                                            Bu_iq_symmetric,
-                                    Bu_kq[j])) *
+                    // Solution A:
+                    (Bu_kq_symmetric[i] * elasticity_tensor *
+                     Bu_kq_symmetric[j]) *
+                    // Solution B (without split):
+                    // (scalar_product(constitutive_law.lambda *
+                    //                         Bu_kq_symmetric_tr * Identity +
+                    //                    2 * constitutive_law.mu *
+                    //                        Bu_kq_symmetric[i],
+                    //                Bu_kq[j])) *
                     fe_values.JxW(q);
               }
             }

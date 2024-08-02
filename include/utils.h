@@ -154,72 +154,15 @@ template <int dim> inline double get_divergence_u(const Tensor<2, dim> grad_u) {
 
 } // namespace Tensors
 
-// Now, there follow several functions to perform
-// the spectral decomposition of the stress tensor
-// into tension and compression parts
-// assumes the matrix is symmetric!
-// The explicit calculation does only work
-// in 2d. For 3d, we should use other libraries or approximative
-// tools to compute eigenvectors and -functions.
-// Borden et al. (2012, 2013) suggested some papers to look into.
 template <int dim>
-void eigen_vectors_and_values(double &E_eigenvalue_1, double &E_eigenvalue_2,
-                              Tensor<2, dim> &ev_matrix,
-                              const Tensor<2, dim> &matrix) {
-  // Compute eigenvectors
-  Tensor<1, dim> E_eigenvector_1;
-  Tensor<1, dim> E_eigenvector_2;
-  if (std::abs(matrix[0][1]) < 1e-10 * std::abs(matrix[0][0]) ||
-      std::abs(matrix[0][1]) < 1e-10 * std::abs(matrix[1][1])) {
-    // E is close to diagonal
-    E_eigenvalue_1 = matrix[0][0];
-    E_eigenvector_1[0] = 1;
-    E_eigenvector_1[1] = 0;
-    E_eigenvalue_2 = matrix[1][1];
-    E_eigenvector_2[0] = 0;
-    E_eigenvector_2[1] = 1;
-  } else {
-    double sq = std::sqrt((matrix[0][0] - matrix[1][1]) *
-                              (matrix[0][0] - matrix[1][1]) +
-                          4.0 * matrix[0][1] * matrix[1][0]);
-    E_eigenvalue_1 = 0.5 * ((matrix[0][0] + matrix[1][1]) + sq);
-    E_eigenvalue_2 = 0.5 * ((matrix[0][0] + matrix[1][1]) - sq);
-
-    E_eigenvector_1[0] =
-        1.0 /
-        (std::sqrt(1 + (E_eigenvalue_1 - matrix[0][0]) / matrix[0][1] *
-                           (E_eigenvalue_1 - matrix[0][0]) / matrix[0][1]));
-    E_eigenvector_1[1] =
-        (E_eigenvalue_1 - matrix[0][0]) /
-        (matrix[0][1] *
-         (std::sqrt(1 + (E_eigenvalue_1 - matrix[0][0]) / matrix[0][1] *
-                            (E_eigenvalue_1 - matrix[0][0]) / matrix[0][1])));
-    E_eigenvector_2[0] =
-        1.0 /
-        (std::sqrt(1 + (E_eigenvalue_2 - matrix[0][0]) / matrix[0][1] *
-                           (E_eigenvalue_2 - matrix[0][0]) / matrix[0][1]));
-    E_eigenvector_2[1] =
-        (E_eigenvalue_2 - matrix[0][0]) /
-        (matrix[0][1] *
-         (std::sqrt(1 + (E_eigenvalue_2 - matrix[0][0]) / matrix[0][1] *
-                            (E_eigenvalue_2 - matrix[0][0]) / matrix[0][1])));
+void tensor_product(Tensor<2, dim> &kronecker, const Tensor<1, dim> &x,
+                              const Tensor<1, dim> &y) {
+  for (int i = 0; i < dim; ++i) {
+    for (int j = 0; j < dim; ++j) {
+      kronecker[i][j] = x[i] * y[j];
+    }
   }
-
-  ev_matrix[0][0] = E_eigenvector_1[0];
-  ev_matrix[0][1] = E_eigenvector_2[0];
-  ev_matrix[1][0] = E_eigenvector_1[1];
-  ev_matrix[1][1] = E_eigenvector_2[1];
-
-  // Sanity check if orthogonal
-  double scalar_prod = 1.0e+10;
-  scalar_prod = E_eigenvector_1[0] * E_eigenvector_2[0] +
-                E_eigenvector_1[1] * E_eigenvector_2[1];
-
-  if (scalar_prod > 1.0e-6) {
-    std::cout << "Seems not to be orthogonal" << std::endl;
-    abort();
-  }
-}
+};
 
 inline bool checkFileExsit(const std::string &name) {
   struct stat buffer;

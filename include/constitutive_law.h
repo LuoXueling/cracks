@@ -16,9 +16,10 @@ public:
   ConstitutiveLaw(const double E, const double nu, std::string plane_state);
 
   void
-  get_stress_strain_tensor(const SymmetricTensor<2, dim> &strain_tensor,
+  get_stress_strain_tensor(const Tensor<2, dim> &strain_tensor,
+                           SymmetricTensor<2, dim> &E_symm,
                            SymmetricTensor<2, dim> &stress_tensor,
-                           SymmetricTensor<4, dim> &stress_strain_tensor) const;
+                           SymmetricTensor<4, dim> &elasticity_tensor) const;
 
   double E;
   double nu;
@@ -72,12 +73,16 @@ ConstitutiveLaw<dim>::ConstitutiveLaw(double E_in, double nu_in,
 
 template <int dim>
 void ConstitutiveLaw<dim>::get_stress_strain_tensor(
-    const SymmetricTensor<2, dim> &strain_tensor,
-    SymmetricTensor<2, dim> &stress_tensor,
-    SymmetricTensor<4, dim> &stress_strain_tensor) const {
+    const Tensor<2, dim> &strain_tensor, SymmetricTensor<2, dim> &E_symm, SymmetricTensor<2, dim> &stress_tensor,
+    SymmetricTensor<4, dim> &elasticity_tensor) const {
 
-  stress_strain_tensor = stress_strain_tensor_mu + stress_strain_tensor_kappa;
-  stress_tensor = stress_strain_tensor * strain_tensor;
+  for (int i = 0; i < dim; ++i) {
+    for (int j = 0; j <= i; ++j) {
+      E_symm[i][j] = strain_tensor[i][j];
+    }
+  }
+  elasticity_tensor = stress_strain_tensor_mu + stress_strain_tensor_kappa;
+  stress_tensor = elasticity_tensor * E_symm;
 }
 
 #endif // CRACKS_CONSTITUTIVE_LAW_H
