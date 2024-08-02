@@ -161,10 +161,10 @@ template <int dim> void AbstractField<dim>::setup_system(Controller<dim> &ctl) {
 
 template <int dim> double AbstractField<dim>::update(Controller<dim> &ctl) {
   if (update_scheme_timestep == "linear") {
-    return update_linear_system(ctl);
-  } else if (update_scheme_timestep == "newton") {
-    update_newton_system(ctl);
+    update_linear_system(ctl);
     return 0.0;
+  } else if (update_scheme_timestep == "newton") {
+    return update_newton_system(ctl);
   }
 }
 
