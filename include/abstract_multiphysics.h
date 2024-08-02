@@ -69,6 +69,7 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
   ctl.debug_dcout << "Initialize system" << std::endl;
   ctl.timer.enter_subsection("Initialize system");
   setup_system();
+  ctl.initialize_point_history();
   ctl.timer.leave_subsection("Initialize system");
 
   //  if (ctl.params.enable_phase_field) {
@@ -145,6 +146,15 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
     // Recover time step
     ctl.current_timestep = tmp_current_timestep;
     ctl.timer.leave_subsection("Solve Newton system");
+    // Refine mesh.
+    if (ctl.params.refine) {
+      ctl.dcout << "Refining mesh" << std::endl;
+      ctl.timer.enter_subsection("Refine grid");
+      ctl.computing_timer.enter_subsection("Refine grid");
+      refine_grid();
+      ctl.timer.leave_subsection();
+      ctl.computing_timer.leave_subsection("Refine grid");
+    }
     if ((ctl.timestep_number) % ctl.params.save_vtk_per_step == 0) {
       ctl.timer.enter_subsection("Calculate outputs");
       ctl.dcout << "Computing output" << std::endl;

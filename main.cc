@@ -39,6 +39,9 @@ int main(int argc, char *argv[]) {
       command =
           "cp " + params.param_dir + " " + params.output_dir + "params.prm";
       system(command.c_str());
+      command = "cp " + params.boundary_from + " " + params.output_dir +
+                "boundary.txt";
+      system(command.c_str());
     }
 
     if (params.dim == 2) {

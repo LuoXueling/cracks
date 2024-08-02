@@ -46,9 +46,6 @@ template <int dim> void PhaseFieldFracture<dim>::setup_system() {
     this->ctl.debug_dcout << "Initialize system - phase field" << std::endl;
     phasefield.setup_system(this->ctl);
   }
-  (this->ctl).quadrature_point_history.initialize(
-      (this->ctl).triangulation.begin_active(), (this->ctl).triangulation.end(),
-      (this->ctl).quadrature_formula.size());
 }
 
 template <int dim> void PhaseFieldFracture<dim>::record_old_solution() {
@@ -70,14 +67,17 @@ template <int dim> double PhaseFieldFracture<dim>::staggered_scheme() {
     (this->ctl).dcout << "Staggered scheme - Solving phase field" << std::endl;
     (this->ctl).computing_timer.enter_subsection("Solve phase field");
     double newton_reduction_phasefield = phasefield.update(this->ctl);
-    (this->ctl).finalize();
+    (this->ctl).debug_dcout << "Staggered scheme - Solving phase field - point_history" << std::endl;
+    (this->ctl).finalize_point_history();
+    (this->ctl).debug_dcout << "Staggered scheme - Solving phase field - phase field limitation" << std::endl;
     phasefield.enforce_phase_field_limitation(this->ctl);
     (this->ctl).computing_timer.leave_subsection("Solve phase field");
 
     (this->ctl).dcout << "Staggered scheme - Solving elasticity" << std::endl;
     (this->ctl).computing_timer.enter_subsection("Solve elasticity");
     double newton_reduction_elasticity = elasticity.update(this->ctl);
-    (this->ctl).finalize();
+    (this->ctl).debug_dcout << "Staggered scheme - Solving elasticity - point_history" << std::endl;
+    (this->ctl).finalize_point_history();
     (this->ctl).computing_timer.leave_subsection("Solve elasticity");
 
     return std::max(newton_reduction_elasticity, newton_reduction_phasefield);
@@ -87,6 +87,7 @@ template <int dim> double PhaseFieldFracture<dim>::staggered_scheme() {
         << std::endl;
     (this->ctl).computing_timer.enter_subsection("Solve elasticity");
     double newton_reduction_elasticity = elasticity.update(this->ctl);
+    (this->ctl).finalize_point_history();
     (this->ctl).computing_timer.leave_subsection("Solve elasticity");
     return newton_reduction_elasticity;
   }
@@ -104,33 +105,79 @@ void PhaseFieldFracture<dim>::respective_output_results(
 }
 
 template <int dim> void PhaseFieldFracture<dim>::refine_grid() {
-  (this->ctl).timer.enter_subsection("Refine grid");
-  //  TimerOutput::Scope t((this->ctl).computing_timer, "Refine grid");
-  //
-  //  Vector<float>
-  //  estimated_error_per_cell((this->ctl).triangulation.n_active_cells());
-  //  KellyErrorEstimator<dim>::estimate(
-  //      elasticity.dof_handler, QGauss<dim - 1>(elasticity.fe.degree + 1),
-  //      std::map<types::boundary_id, const Function<dim> *>(),
-  //      elasticity.solution, estimated_error_per_cell);
-  //  parallel::distributed::GridRefinement::refine_and_coarsen_fixed_number(
-  //      (this->ctl).triangulation, estimated_error_per_cell, 0.3, 0.03);
-  //  typename DoFHandler<dim>::active_cell_iterator
-  //      cell = elasticity.dof_handler.begin_active(),
-  //      endc = elasticity.dof_handler.end();
-  //  for (; cell != endc; ++cell)
-  //    if (cell->is_locally_owned())
-  //      cell->set_refine_flag();
-  //
-  //  parallel::distributed::SolutionTransfer<dim, LA::MPI::Vector> soltrans =
-  //      elasticity.prepare_refine();
-  //
-  //  (this->ctl).triangulation.execute_coarsening_and_refinement();
-  //  setup_system();
-  //
-  //  elasticity.post_refine(soltrans, this->ctl);
+  typename DoFHandler<dim>::active_cell_iterator
+      cell = phasefield.dof_handler.begin_active(),
+      endc = phasefield.dof_handler.end();
 
-  (this->ctl).timer.leave_subsection();
+  FEValues<dim> fe_values(phasefield.fe, (this->ctl).quadrature_formula,
+                          update_gradients);
+
+  unsigned int n_q_points = (this->ctl).quadrature_formula.size();
+  std::vector<Tensor<1, dim>> phasefield_grads(n_q_points);
+
+  // Define refinement criterion and mark cells to refine
+  unsigned int will_refine = 0;
+  double a1 = (this->ctl).params.refine_influence_initial;
+  double a2 = (this->ctl).params.refine_influence_final;
+  double phi_ref = std::exp(-a2) / std::exp(-a1);
+  for (; cell != endc; ++cell) {
+    if (cell->is_locally_owned()) {
+      if (cell->diameter() < (this->ctl).params.l_phi *
+                                 (this->ctl).params.refine_minimum_size_ratio) {
+        cell->clear_refine_flag();
+        continue;
+      }
+      fe_values.reinit(cell);
+      fe_values.get_function_gradients((phasefield.solution), phasefield_grads);
+      double max_grad = 0;
+      for (unsigned int q = 0; q < n_q_points; ++q) {
+        double prod = std::sqrt(phasefield_grads[q]*phasefield_grads[q]);
+        max_grad = std::max(max_grad, prod);
+      }
+      if (max_grad > 1 / (this->ctl).params.l_phi * phi_ref * exp(-a1)) {
+        cell->set_refine_flag();
+        will_refine = 1;
+      }
+    }
+  }
+  (this->ctl).debug_dcout << "Refine - finish marking" << std::endl;
+  double will_refine_global =
+      Utilities::MPI::sum(will_refine, (this->ctl).mpi_com);
+  if (!static_cast<bool>(will_refine_global)) {
+    (this->ctl).dcout << "No cell to refine" << std::endl;
+  } else {
+    (this->ctl).debug_dcout << "Refine - prepare" << std::endl;
+    // Prepare transferring of point history
+    parallel::distributed::ContinuousQuadratureDataTransfer<dim, PointHistory>
+        point_history_transfer(FE_Q<dim>((this->ctl).params.poly_degree),
+                               QGauss<dim>((this->ctl).params.poly_degree + 1),
+                               QGauss<dim>((this->ctl).params.poly_degree + 1));
+    point_history_transfer.prepare_for_coarsening_and_refinement(
+        (this->ctl).triangulation, (this->ctl).quadrature_point_history);
+
+    // Prepare transferring of fields
+    parallel::distributed::SolutionTransfer<dim, LA::MPI::Vector>
+        soltrans_elasticity = elasticity.prepare_refine();
+    parallel::distributed::SolutionTransfer<dim, LA::MPI::Vector>
+        soltrans_phasefield = phasefield.prepare_refine();
+
+    (this->ctl).debug_dcout << "Refine - start refinement" << std::endl;
+    // Execute refinement
+    (this->ctl).triangulation.execute_coarsening_and_refinement();
+    setup_system();
+
+    (this->ctl).debug_dcout << "Refine - after refinement - point history"
+                            << std::endl;
+    // Finalize transferring of point history
+    (this->ctl).initialize_point_history();
+    point_history_transfer.interpolate();
+    (this->ctl).debug_dcout << "Refine - after refinement - transfer fields"
+                            << std::endl;
+    // Finalize transferring of fields
+    elasticity.post_refine(soltrans_elasticity, this->ctl);
+    phasefield.post_refine(soltrans_phasefield, this->ctl);
+    (this->ctl).debug_dcout << "Refine - done" << std::endl;
+  }
 }
 
 #endif

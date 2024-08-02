@@ -211,10 +211,9 @@ struct FESystemInfo {
   unsigned int poly_degree;
   unsigned int quad_order;
   bool refine;
-  unsigned int n_global_pre_refine;
-  unsigned int n_local_pre_refine;
-  unsigned int n_refinement_cycles;
-  double value_phase_field_for_refinement;
+  double refine_influence_initial;
+  double refine_influence_final;
+  double refine_minimum_size_ratio;
 
   static void subsection_declare_parameters(ParameterHandler &prm);
 
@@ -232,13 +231,13 @@ void FESystemInfo::subsection_declare_parameters(ParameterHandler &prm) {
     prm.declare_entry("Quadrature order", "3", Patterns::Integer(0),
                       "Gauss quadrature order");
     prm.declare_entry("Refine", "false", Patterns::Bool());
-    prm.declare_entry("Global pre-refinement steps", "1", Patterns::Integer(0));
 
-    prm.declare_entry("Local pre-refinement steps", "0", Patterns::Integer(0));
-
-    prm.declare_entry("Adaptive refinement cycles", "0", Patterns::Integer(0));
-    prm.declare_entry("Value of phase field for refinement", "0.0",
-                      Patterns::Double(0));
+    prm.declare_entry("Phase field initial influential ratio (for refinement)",
+                      "2", Patterns::Double(0));
+    prm.declare_entry("Phase field final influential ratio (for refinement)",
+                      "3", Patterns::Double(0));
+    prm.declare_entry("Minimum relative size of refined cells w.r.t l_phi",
+                      "0.2", Patterns::Double(0));
   }
   prm.leave_subsection();
 }
@@ -250,11 +249,12 @@ void FESystemInfo::subsection_parse_parameters(ParameterHandler &prm) {
     poly_degree = prm.get_integer("Polynomial degree");
     quad_order = prm.get_integer("Quadrature order");
     refine = prm.get_bool("Refine");
-    n_global_pre_refine = prm.get_integer("Global pre-refinement steps");
-    n_local_pre_refine = prm.get_integer("Local pre-refinement steps");
-    n_refinement_cycles = prm.get_integer("Adaptive refinement cycles");
-    value_phase_field_for_refinement =
-        prm.get_double("Value of phase field for refinement");
+    refine_influence_final =
+        prm.get_double("Phase field final influential ratio (for refinement)");
+    refine_influence_initial = prm.get_double(
+        "Phase field initial influential ratio (for refinement)");
+    refine_minimum_size_ratio = prm.get_double(
+        "Minimum relative size of refined cells w.r.t l_phi");
   }
   prm.leave_subsection();
 }

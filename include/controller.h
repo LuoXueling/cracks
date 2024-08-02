@@ -9,16 +9,22 @@
 #include "parameters.h"
 #include "utils.h"
 
-class PointHistory {
+class PointHistory : public TransferableQuadraturePointData {
 public:
   void update(std::string name, double solution,
               std::string scheme = "latest") {
     solution_dict_temp[name] = solution;
     finalize_scheme[name] = scheme;
   };
-  double get(std::string name, double default_value = 0.0) {
+  double get(std::string name, double default_value = 0.0) const {
+    // This function has to be const for pack_values so we cannot use
+    // solution_dict[name]
     try {
-      return solution_dict[name];
+      auto pos = solution_dict.find(name);
+      if (pos == solution_dict.end()) {
+        return default_value;
+      } else
+        return pos->second;
     } catch (...) {
       return default_value;
     }
@@ -46,18 +52,49 @@ public:
     }
   }
 
+  unsigned int number_of_values() const override {
+    return finalize_scheme.size();
+  }
+
+  void pack_values(std::vector<double> &values) const override {
+    Assert(values.size() == finalize_scheme.size(), ExcInternalError());
+    std::vector<std::string> names = get_names();
+    for (unsigned int i = 0; i < finalize_scheme.size(); ++i) {
+      values[i] = get(names[i], 0.0);
+    }
+  }
+
+  void unpack_values(const std::vector<double> &values) override {
+    Assert(values.size() == finalize_scheme.size(), ExcInternalError());
+    std::vector<std::string> names = get_names();
+    for (unsigned int i = 0; i < finalize_scheme.size(); ++i) {
+      solution_dict[names[i]] = values[i];
+    }
+  }
+
+  std::vector<std::string> get_names() const {
+    std::vector<std::string> names;
+    for (std::map<std::string, std::string>::iterator it =
+             finalize_scheme.begin();
+         it != finalize_scheme.end(); ++it) {
+      names.push_back(it->first);
+    }
+    return names;
+  }
+
 private:
   std::map<std::string, double> solution_dict_temp;
   std::map<std::string, double> solution_dict;
 
-  std::map<std::string, std::string> finalize_scheme;
+  inline static std::map<std::string, std::string> finalize_scheme;
 };
 
 template <int dim> class Controller {
 public:
   explicit Controller(Parameters::AllParameters &prms);
 
-  void finalize();
+  void finalize_point_history();
+  void initialize_point_history();
 
   MPI_Comm mpi_com;
 
@@ -101,7 +138,18 @@ Controller<dim>::Controller(Parameters::AllParameters &prms)
   statistics.set_auto_fill_mode(true);
 }
 
-template <int dim> void Controller<dim>::finalize() {
+template <int dim> void Controller<dim>::initialize_point_history() {
+  // The original CellDataStorage.initialize use tria.begin_active() and
+  // tria.end() and does not really loop over locally-owned cells
+  // https://github.com/rezarastak/dealii/blob/381a8d3739e10a450b7efeb62fd2f74add7ee19c/tests/base/quadrature_point_data_04.cc#L101
+  for (auto cell : triangulation.active_cell_iterators())
+    if (cell->is_locally_owned()) {
+      quadrature_point_history.template initialize<PointHistory>(
+          cell, quadrature_formula.size());
+    }
+}
+
+template <int dim> void Controller<dim>::finalize_point_history() {
   /*
    * Finalize point history
    */
