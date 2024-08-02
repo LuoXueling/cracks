@@ -145,8 +145,8 @@ template <int dim> void AbstractField<dim>::setup_system(Controller<dim> &ctl) {
   {
     // solution has ghost elements.
     solution.reinit(locally_owned_dofs, locally_relevant_dofs, ctl.mpi_com);
-    // system_rhs, system_matrix, and the solution vector system_solution do not have
-    // ghost elements
+    // system_rhs, system_matrix, and the solution vector system_solution do not
+    // have ghost elements
     system_solution.reinit(locally_owned_dofs, ctl.mpi_com);
     system_rhs.reinit(locally_owned_dofs, ctl.mpi_com);
     solution = 0;
@@ -220,20 +220,16 @@ double AbstractField<dim>::update_linear_system(Controller<dim> &ctl) {
   LA::MPI::Vector distributed_solution(locally_owned_dofs, ctl.mpi_com);
   distributed_solution = solution;
 
-  ctl.debug_dcout << "Solve linear system - initialize"
-                  << std::endl;
+  ctl.debug_dcout << "Solve linear system - initialize" << std::endl;
   setup_boundary_condition(ctl);
   distribute_all_constraints(distributed_solution, ctl);
   solution = distributed_solution;
-  ctl.debug_dcout << "Solve linear system - assemble"
-                  << std::endl;
+  ctl.debug_dcout << "Solve linear system - assemble" << std::endl;
   assemble_linear_system(ctl);
 
-  ctl.debug_dcout << "Solve linear system - solve"
-                  << std::endl;
+  ctl.debug_dcout << "Solve linear system - solve" << std::endl;
   solve(ctl);
-  ctl.debug_dcout << "Solve linear system - constraints"
-                  << std::endl;
+  ctl.debug_dcout << "Solve linear system - constraints" << std::endl;
   distributed_solution = system_solution;
   distribute_all_constraints(distributed_solution, ctl);
   solution = distributed_solution;

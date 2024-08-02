@@ -67,16 +67,21 @@ template <int dim> double PhaseFieldFracture<dim>::staggered_scheme() {
     (this->ctl).dcout << "Staggered scheme - Solving phase field" << std::endl;
     (this->ctl).computing_timer.enter_subsection("Solve phase field");
     double newton_reduction_phasefield = phasefield.update(this->ctl);
-    (this->ctl).debug_dcout << "Staggered scheme - Solving phase field - point_history" << std::endl;
+    (this->ctl).debug_dcout
+        << "Staggered scheme - Solving phase field - point_history"
+        << std::endl;
     (this->ctl).finalize_point_history();
-    (this->ctl).debug_dcout << "Staggered scheme - Solving phase field - phase field limitation" << std::endl;
+    (this->ctl).debug_dcout
+        << "Staggered scheme - Solving phase field - phase field limitation"
+        << std::endl;
     phasefield.enforce_phase_field_limitation(this->ctl);
     (this->ctl).computing_timer.leave_subsection("Solve phase field");
 
     (this->ctl).dcout << "Staggered scheme - Solving elasticity" << std::endl;
     (this->ctl).computing_timer.enter_subsection("Solve elasticity");
     double newton_reduction_elasticity = elasticity.update(this->ctl);
-    (this->ctl).debug_dcout << "Staggered scheme - Solving elasticity - point_history" << std::endl;
+    (this->ctl).debug_dcout
+        << "Staggered scheme - Solving elasticity - point_history" << std::endl;
     (this->ctl).finalize_point_history();
     (this->ctl).computing_timer.leave_subsection("Solve elasticity");
 
@@ -131,7 +136,7 @@ template <int dim> void PhaseFieldFracture<dim>::refine_grid() {
       fe_values.get_function_gradients((phasefield.solution), phasefield_grads);
       double max_grad = 0;
       for (unsigned int q = 0; q < n_q_points; ++q) {
-        double prod = std::sqrt(phasefield_grads[q]*phasefield_grads[q]);
+        double prod = std::sqrt(phasefield_grads[q] * phasefield_grads[q]);
         max_grad = std::max(max_grad, prod);
       }
       if (max_grad > 1 / (this->ctl).params.l_phi * phi_ref * exp(-a1)) {
