@@ -247,15 +247,20 @@ template <int dim> void Elasticity<dim>::compute_load(Controller<dim> &ctl) {
           fe_face_values[displacement].get_function_gradients(
               (this->solution), face_solution_grads);
 
+          const std::vector<std::shared_ptr<PointHistory>> lqph =
+              ctl.quadrature_point_history.get_data(cell);
+
           for (unsigned int q_point = 0; q_point < n_face_q_points; ++q_point) {
+            double phasefield = lqph[q_point]->get("Phase field", 0.0);
+            double degradation = pow(1 - phasefield, 2) + ctl.params.constant_k;
             const Tensor<2, dim> grad_u = face_solution_grads[q_point];
 
             const Tensor<2, dim> E = 0.5 * (grad_u + transpose(grad_u));
             const double tr_E = trace(E);
 
             Tensor<2, dim> stress_term;
-            stress_term = constitutive_law.lambda * tr_E * Identity +
-                          2 * constitutive_law.mu * E;
+            stress_term = degradation * (constitutive_law.lambda * tr_E * Identity +
+                          2 * constitutive_law.mu * E);
 
             load_value[cell->face(face)->boundary_id()] +=
                 stress_term * fe_face_values.normal_vector(q_point) *

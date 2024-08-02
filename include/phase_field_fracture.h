@@ -68,7 +68,7 @@ template <int dim> void PhaseFieldFracture<dim>::return_old_solution() {
 template <int dim> double PhaseFieldFracture<dim>::staggered_scheme() {
   if ((this->ctl).params.enable_phase_field) {
     (this->ctl).dcout
-        << "Solve Newton system - Solving phase field"
+        << "Staggered scheme - Solving phase field"
         << std::endl;
     (this->ctl).computing_timer.enter_subsection("Solve phase field");
     double newton_reduction_phasefield = phasefield.update(this->ctl);
@@ -77,7 +77,7 @@ template <int dim> double PhaseFieldFracture<dim>::staggered_scheme() {
     (this->ctl).computing_timer.leave_subsection("Solve phase field");
 
     (this->ctl).dcout
-        << "Solve Newton system - Solving elasticity"
+        << "Staggered scheme - Solving elasticity"
         << std::endl;
     (this->ctl).computing_timer.enter_subsection("Solve elasticity");
     double newton_reduction_elasticity = elasticity.update(this->ctl);
