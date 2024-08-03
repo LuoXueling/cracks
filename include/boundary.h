@@ -96,15 +96,80 @@ std::unique_ptr<Function<dim>> select_dirichlet_boundary(
   }
 }
 
+template <int dim> class GeneralNeumannBoundary : public AbstractBoundary<dim> {
+public:
+  GeneralNeumannBoundary(double present_time_inp,
+                         std::vector<double> &constraint_vector_inp,
+                         unsigned int n_components_inp)
+      : AbstractBoundary<dim>(present_time_inp, n_components_inp),
+        constraint_vector(constraint_vector_inp),
+        n_components(n_components_inp){};
+
+  double value(const Point<dim> &p, unsigned int component) const override {
+    return constraint_vector[component];
   };
 
+  void multiply(double x) {
+    for (unsigned int i = 0; i < constraint_vector.size(); ++i) {
+      constraint_vector[i] *= x;
+    }
+  }
+
 private:
-  const double velocity;
+  std::vector<double> constraint_vector;
+  const unsigned int n_components;
 };
 
 template <int dim>
-DisplacementBoundary<dim>::DisplacementBoundary(const double present_time_inp,
-                                                double velocity_inp)
-    : AbstractBoundary<dim>(present_time_inp), velocity(velocity_inp) {}
+class NeumannRateBoundary : public GeneralNeumannBoundary<dim> {
+public:
+  NeumannRateBoundary(double present_time_inp,
+                      std::vector<double> constraint_vector_inp,
+                      unsigned int n_components_inp)
+      : GeneralNeumannBoundary<dim>(present_time_inp, constraint_vector_inp,
+                                    n_components_inp) {
+    this->multiply(present_time_inp);
+  };
+};
+
+template <int dim>
+class SineNeumannBoundary : public GeneralNeumannBoundary<dim> {
+public:
+  SineNeumannBoundary(double present_time_inp,
+                      std::vector<double> &constraint_vector_inp,
+                      std::vector<double> &frequency_mean_amplitude,
+                      unsigned int n_components_inp)
+      : GeneralNeumannBoundary<dim>(present_time_inp, constraint_vector_inp,
+                                    n_components_inp) {
+    double multiplier = frequency_mean_amplitude[2] *
+                            sin(2 * numbers::PI * frequency_mean_amplitude[0] *
+                                present_time_inp) +
+                        frequency_mean_amplitude[1];
+    this->multiply(multiplier);
+  };
+};
+
+template <int dim>
+std::unique_ptr<GeneralNeumannBoundary<dim>>
+select_neumann_boundary(std::tuple<unsigned int, std::string,
+                                   std::vector<double>, std::vector<double>>
+                            neumann_info,
+                        unsigned int n_components, double time) {
+  std::string boundary_type = std::get<1>(neumann_info);
+  std::vector<double> vector = std::get<2>(neumann_info);
+  std::vector<double> additional_info = std::get<3>(neumann_info);
+  if (boundary_type == "neumann") {
+    return std::make_unique<GeneralNeumannBoundary<dim>>(time, vector,
+                                                         n_components);
+  } else if (boundary_type == "neumannrate") {
+    return std::make_unique<NeumannRateBoundary<dim>>(time, vector,
+                                                      n_components);
+  } else if (boundary_type == "sineneumann") {
+    return std::make_unique<SineNeumannBoundary<dim>>(
+        time, vector, additional_info, n_components);
+  } else {
+    AssertThrow(false, ExcNotImplemented());
+  }
+}
 
 #endif // CRACKS_DIRICHLET_BOUNDARY_H

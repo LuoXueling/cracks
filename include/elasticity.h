@@ -75,6 +75,16 @@ void Elasticity<dim>::assemble_newton_system(bool residual_only,
   Tensor<2, dim> zero_matrix;
   zero_matrix.clear();
 
+  // Integrate face load
+  LA::MPI::Vector neumann_rhs;
+  neumann_rhs = this->system_rhs;
+  neumann_rhs = 0;
+  for (unsigned int i = 0; i < (this->neumann_boundary_info).size(); ++i) {
+    this->setup_neumann_boundary_condition((this->neumann_boundary_info)[i],
+                                           neumann_rhs, ctl);
+  }
+  this->system_rhs -= neumann_rhs;
+
   // Determine decomposition
   std::unique_ptr<Decomposition<dim>> decomposition =
       select_decomposition<dim>(ctl.params.decomposition);
@@ -258,6 +268,7 @@ template <int dim> void Elasticity<dim>::compute_load(Controller<dim> &ctl) {
                                        update_JxW_values);
 
   const unsigned int dofs_per_cell = (this->fe).dofs_per_cell;
+  const unsigned int n_q_points = ctl.quadrature_formula.size();
   const unsigned int n_face_q_points = face_quadrature_formula.size();
 
   std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);

@@ -31,6 +31,11 @@ public:
   virtual void define_boundary_condition(std::string boundary_from,
                                          Controller<dim> &ctl);
   virtual void setup_dirichlet_boundary_condition(Controller<dim> &ctl);
+  virtual void setup_neumann_boundary_condition(
+      std::tuple<unsigned int, std::string, std::vector<double>,
+                 std::vector<double>>
+          neumann_info,
+      LA::MPI::Vector &neumann_rhs, Controller<dim> &ctl);
   virtual void setup_system(Controller<dim> &ctl);
   virtual void record_old_solution(Controller<dim> &ctl);
   virtual void return_old_solution(Controller<dim> &ctl);
@@ -68,6 +73,9 @@ public:
   std::vector<ComponentMask> component_masks;
   std::vector<std::tuple<unsigned int, std::string, unsigned int, double>>
       dirichlet_boundary_info;
+  std::vector<std::tuple<unsigned int, std::string, std::vector<double>,
+                         std::vector<double>>>
+      neumann_boundary_info;
   /*
    * Solutions
    */
@@ -191,8 +199,27 @@ void AbstractField<dim>::define_boundary_condition(
         std::tuple<unsigned int, std::string, unsigned int, double> info(
             boundary_id, constraint_type, constrained_dof, constraint_value);
         dirichlet_boundary_info.push_back(info);
+      } else if (constraint_type == "neumann" ||
+                 constraint_type == "neumannrate" ||
+                 constraint_type == "sineneumann") {
+        std::vector<double> constraint_vector;
+        std::vector<double> additional_info;
+        double temp_value;
+        do {
+          iss >> temp_value;
+          if (constraint_vector.size() < fe.n_components()) {
+            constraint_vector.push_back(temp_value);
+          } else {
+            additional_info.push_back(temp_value);
+          }
+        } while (!iss.eof());
+        std::tuple<unsigned int, std::string, std::vector<double>,
+                   std::vector<double>>
+            info(boundary_id, constraint_type, constraint_vector,
+                 additional_info);
+        neumann_boundary_info.push_back(info);
       } else {
-        AssertThrow(false, ExcNotImplemented());
+        AssertThrow(false, ExcNotImplemented(constraint_type));
       }
     }
     fb.close();
@@ -216,6 +243,58 @@ void AbstractField<dim>::setup_dirichlet_boundary_condition(
         component_masks[std::get<2>(info)]);
   }
   constraints_all.close();
+}
+
+template <int dim>
+void AbstractField<dim>::setup_neumann_boundary_condition(
+    std::tuple<unsigned int, std::string, std::vector<double>,
+               std::vector<double>>
+        neumann_info,
+    LA::MPI::Vector &neumann_rhs, Controller<dim> &ctl) {
+  const QGauss<dim - 1> face_quadrature_formula(ctl.params.poly_degree + 1);
+  const unsigned int n_face_q_points = face_quadrature_formula.size();
+  const unsigned int dofs_per_cell = fe.dofs_per_cell;
+  FEFaceValues<dim> fe_face_values(fe, face_quadrature_formula,
+                                   update_values | update_quadrature_points |
+                                       update_JxW_values);
+
+  Vector<double> cell_rhs(dofs_per_cell);
+  std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
+  std::vector<Vector<double>> neumann_values(n_face_q_points);
+  // Vector<double> cannot be automatically initialized like Tensor
+  for (unsigned int j = 0; j < n_face_q_points; ++j) {
+    neumann_values[j].reinit(fe.n_components());
+  }
+
+  unsigned int boundary_id = std::get<0>(neumann_info);
+
+  std::unique_ptr<GeneralNeumannBoundary<dim>> neumann_boundary =
+      select_neumann_boundary<dim>(neumann_info, fe.n_components(), ctl.time);
+
+  for (const auto &cell : (this->dof_handler).active_cell_iterators())
+    if (cell->is_locally_owned()) {
+      for (const auto &face : cell->face_iterators()) {
+        if (face->at_boundary() && face->boundary_id() == boundary_id) {
+          cell_rhs = 0;
+          fe_face_values.reinit(cell, face);
+          neumann_boundary->vector_value_list(
+              fe_face_values.get_quadrature_points(), neumann_values);
+          for (unsigned int q_point = 0; q_point < n_face_q_points; ++q_point) {
+            for (unsigned int i = 0; i < dofs_per_cell; ++i) {
+              const unsigned int comp_i = fe.system_to_component_index(i).first;
+              cell_rhs(i) +=
+                  (fe_face_values.shape_value(i, q_point) * // phi_i(x_q)
+                   neumann_values[q_point][comp_i] *        // g(x_q)
+                   fe_face_values.JxW(q_point));            // dx
+            }
+          }
+          cell->get_dof_indices(local_dof_indices);
+          for (unsigned int i = 0; i < dofs_per_cell; ++i) {
+            neumann_rhs(local_dof_indices[i]) += cell_rhs(i);
+          }
+        }
+      }
+    }
 }
 
 template <int dim>
