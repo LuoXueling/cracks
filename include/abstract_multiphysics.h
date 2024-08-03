@@ -155,7 +155,8 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
       ctl.timer.leave_subsection();
       ctl.computing_timer.leave_subsection("Refine grid");
     }
-    if ((ctl.timestep_number) % ctl.params.save_vtk_per_step == 0) {
+    if (ctl.timestep_number == 0 ||
+        (ctl.timestep_number + 1) % ctl.params.save_vtk_per_step == 0) {
       ctl.timer.enter_subsection("Calculate outputs");
       ctl.dcout << "Computing output" << std::endl;
       ctl.computing_timer.enter_subsection("Calculate outputs");
