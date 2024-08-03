@@ -241,7 +241,7 @@ template <int dim> void AbstractMultiphysics<dim>::output_results() {
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0) {
     std::ofstream stat_file(
-        (ctl.params.output_dir + "/statistics.txt").c_str());
+        (ctl.params.output_dir + "/log-results.txt").c_str());
     ctl.statistics.write_text(stat_file);
     stat_file.close();
   }

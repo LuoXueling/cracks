@@ -1,10 +1,11 @@
-while getopts "p:n:r:s:" opt
+while getopts "p:n:r:s:f:" opt
 do
    case "$opt" in
       p ) path="$OPTARG" ;;
       n ) nprocesses="$OPTARG" ;;
       r ) release_or_debug="$OPTARG" ;;
       s ) skip_compile="$OPTARG" ;;
+      f ) parameter_file="$OPTARG" ;;
    esac
 done
 
@@ -13,9 +14,16 @@ nprocesses="${nprocesses:-8}"
 release_or_debug="${release_or_debug:-release}"
 skip_compile="${skip_compile:-false}"
 
+echo "Path to build: ${path}"
+echo "N threads: ${nprocesses}"
+echo "Release or debug: ${release_or_debug}"
+echo "Not compile: ${skip_compile}"
+
 if [ "$skip_compile" = "true" ]; then
+   echo "Skipping compiling"
    cd "$path"
 else
+   echo "Start compiling"
    rm -rf "$path"
    mkdir "$path"
    cd "$path"
@@ -23,4 +31,6 @@ else
    make "$release_or_debug"
    make
 fi
-mpirun --oversubscribe -n "$nprocesses" ./main 
+
+echo "Input file: ../${parameter_file}"
+mpirun --oversubscribe -n "$nprocesses" ./main "../${parameter_file}"

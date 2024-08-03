@@ -106,6 +106,9 @@ public:
   ConditionalOStream debug_dcout;
   TimerOutput timer;
   TimerOutput computing_timer;
+  std::ofstream fout;
+  teebuf sbuf;
+  std::ostream pout;
 
   double time;
   unsigned int timestep_number;
@@ -127,9 +130,11 @@ Controller<dim>::Controller(Parameters::AllParameters &prms)
                                  Triangulation<dim>::smoothing_on_refinement |
                                  Triangulation<dim>::smoothing_on_coarsening)),
       quadrature_formula(prms.poly_degree + 1),
-      dcout(std::cout, (Utilities::MPI::this_mpi_process(mpi_com) == 0)),
-      debug_dcout(std::cout, (Utilities::MPI::this_mpi_process(mpi_com) == 0) &&
-                                 prms.debug_output),
+      fout(prms.output_dir + "log.txt"), sbuf(fout.rdbuf(), std::cout.rdbuf()),
+      pout(&sbuf),
+      dcout(pout, (Utilities::MPI::this_mpi_process(mpi_com) == 0)),
+      debug_dcout(pout, (Utilities::MPI::this_mpi_process(mpi_com) == 0) &&
+                            prms.debug_output),
       timer(mpi_com, dcout, TimerOutput::never,
             TimerOutput::cpu_and_wall_times),
       computing_timer(mpi_com, dcout, TimerOutput::never,
