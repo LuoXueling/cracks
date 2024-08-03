@@ -250,17 +250,20 @@ template <int dim> void AbstractMultiphysics<dim>::output_results() {
 
   respective_output_results(data_out);
 
+  ctl.debug_dcout << "Computing output - build patches" << std::endl;
   data_out.build_patches();
-
+  ctl.debug_dcout << "Computing output - writing" << std::endl;
   data_out.write_vtu_with_pvtu_record(ctl.params.output_dir, "solution",
                                       ctl.timestep_number, ctl.mpi_com, 2, 8);
 
+  ctl.debug_dcout << "Computing output - report statistics" << std::endl;
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0) {
     std::ofstream stat_file(
         (ctl.params.output_dir + "/log-results.txt").c_str());
     ctl.statistics.write_text(stat_file);
     stat_file.close();
   }
+  ctl.debug_dcout << "Computing output - done" << std::endl;
 }
 
 #endif // CRACKS_ABSTRACT_MULTIPHYSICS_H

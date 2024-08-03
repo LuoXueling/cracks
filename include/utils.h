@@ -171,32 +171,60 @@ inline bool checkFileExsit(const std::string &name) {
 }
 
 // https://stackoverflow.com/questions/13665090/trying-to-write-stdout-and-file-at-the-same-time
-struct teebuf
-    : std::streambuf
-{
-  std::streambuf* sb1_;
-  std::streambuf* sb2_;
+struct teebuf : std::streambuf {
+  std::streambuf *sb1_;
+  std::streambuf *sb2_;
 
-  teebuf(std::streambuf* sb1, std::streambuf* sb2)
-      : sb1_(sb1), sb2_(sb2) {
-  }
+  teebuf(std::streambuf *sb1, std::streambuf *sb2) : sb1_(sb1), sb2_(sb2) {}
   int overflow(int c) {
     typedef std::streambuf::traits_type traits;
     bool rc(true);
     if (!traits::eq_int_type(traits::eof(), c)) {
-      traits::eq_int_type(this->sb1_->sputc(c), traits::eof())
-          && (rc = false);
-      traits::eq_int_type(this->sb2_->sputc(c), traits::eof())
-          && (rc = false);
+      traits::eq_int_type(this->sb1_->sputc(c), traits::eof()) && (rc = false);
+      traits::eq_int_type(this->sb2_->sputc(c), traits::eof()) && (rc = false);
     }
-    return rc? traits::not_eof(c): traits::eof();
+    return rc ? traits::not_eof(c) : traits::eof();
   }
   int sync() {
     bool rc(true);
     this->sb1_->pubsync() != -1 || (rc = false);
     this->sb2_->pubsync() != -1 || (rc = false);
-    return rc? 0: -1;
+    return rc ? 0 : -1;
   }
 };
+
+class DebugConditionalOStream : public ConditionalOStream {
+public:
+  DebugConditionalOStream(std::ostream &stream, MPI_Comm *mpi_com,
+                          const bool active = true)
+      : ConditionalOStream(stream, active), my_mpi_com(mpi_com){};
+
+  template <typename T>
+  const DebugConditionalOStream &operator<<(const T &t) const;
+
+  const DebugConditionalOStream &
+  operator<<(std::ostream &(*p)(std::ostream &)) const;
+  MPI_Comm *my_mpi_com;
+};
+
+template <class T>
+inline const DebugConditionalOStream &
+DebugConditionalOStream::operator<<(const T &t) const {
+  if (is_active() == true) {
+    get_stream() << std::to_string(
+                        Utilities::MPI::this_mpi_process(*my_mpi_com)) +
+                        ": ";
+    get_stream() << t;
+  }
+  return *this;
+}
+
+inline const DebugConditionalOStream &
+DebugConditionalOStream::operator<<(std::ostream &(*p)(std::ostream &)) const {
+  if (is_active() == true) {
+    get_stream() << p;
+  }
+  return *this;
+}
 
 #endif

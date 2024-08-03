@@ -334,20 +334,22 @@ template <int dim> void Elasticity<dim>::compute_load(Controller<dim> &ctl) {
     }
   ctl.debug_dcout << "Computing output - elasticity - load - recording"
                   << std::endl;
-  typename std::map<int, Tensor<1, dim>>::iterator it;
-  for (it = load_value.begin(); it != load_value.end(); it++) {
-    ctl.debug_dcout << "Computing output - elasticity - load - recording - item"
-                    << std::endl;
+
+  for (auto const &it : load_value) {
+    ctl.debug_dcout
+        << "Computing output - elasticity - load - recording - boundary id=" +
+               std::to_string(it.first)
+        << std::endl;
     for (int i = 0; i < dim; ++i) {
       ctl.debug_dcout
           << "Computing output - elasticity - load - recording - dim - sum"
           << std::endl;
-      double load = Utilities::MPI::sum(it->second[i], ctl.mpi_com) * -1;
+      double load = Utilities::MPI::sum(it.second[i], ctl.mpi_com) * -1;
       ctl.debug_dcout
           << "Computing output - elasticity - load - recording - dim - record"
           << std::endl;
       std::ostringstream stringStream;
-      stringStream << "Boundary-" << it->first << "-Dir-" << i;
+      stringStream << "Boundary-" << it.first << "-Dir-" << i;
       (ctl.statistics).add_value(stringStream.str(), load);
       (ctl.statistics).set_precision(stringStream.str(), 8);
       (ctl.statistics).set_scientific(stringStream.str(), true);
