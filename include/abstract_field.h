@@ -67,7 +67,6 @@ public:
 
   std::vector<ComponentMask> component_masks;
   std::vector<std::tuple<unsigned int, std::string, unsigned int, double>>
-
       dirichlet_boundary_info;
   /*
    * Solutions
@@ -210,19 +209,11 @@ void AbstractField<dim>::setup_dirichlet_boundary_condition(
                         ConstraintMatrix::right_object_wins);
   for (const std::tuple<unsigned int, std::string, unsigned int, double> &info :
        dirichlet_boundary_info) {
-    if (std::get<1>(info) == "velocity") {
-      VectorTools::interpolate_boundary_values(
-          dof_handler, std::get<0>(info),
-          VelocityBoundary<dim>(ctl.time, std::get<3>(info)), constraints_all,
-          component_masks[std::get<2>(info)]);
-    } else if (std::get<1>(info) == "dirichlet") {
-      VectorTools::interpolate_boundary_values(
-          dof_handler, std::get<0>(info),
-          GeneralDirichletBoundary<dim>(ctl.time, std::get<3>(info)),
-          constraints_all, component_masks[std::get<2>(info)]);
-    } else {
-      AssertThrow(false, ExcNotImplemented());
-    }
+    std::unique_ptr<Function<dim>> dirichlet_boundary =
+        select_dirichlet_boundary<dim>(info, fe.n_components(), ctl.time);
+    VectorTools::interpolate_boundary_values(
+        dof_handler, std::get<0>(info), *dirichlet_boundary, constraints_all,
+        component_masks[std::get<2>(info)]);
   }
   constraints_all.close();
 }
