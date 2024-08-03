@@ -12,7 +12,6 @@
 /default.prm
 post_process.ipynb
 /ref
-/meshes
 main
 .idea
 cmake-build-debug

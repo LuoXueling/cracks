@@ -1,0 +1,14 @@
+# Surface-ID, type, dof/vector, and value(s).
+# Dirichlet boundaries:
+# For "velocity", the fourth number is in mm/s (or the unit of the rate of the field variable)
+# For "dirichlet", the fourth number is in mm (or the unit of the field variable)
+# Neumann boundaries:
+# For Neumann boundaries, the third part is a series of floats denoting the vector of the neumann boundary (set 0 if is a scalar field).
+# For "neumann", the third part is in MPa (or the unit of gradient)
+# For "neumannrate", the third part is in MPa/s (or the unit of the rate of gradient)
+# For "sineneumann", the third part is dimensionless. And add a fourth part being frequency(Hz), mean(MPa), and amplitude(MPa), for example "20 1 2".
+1 dirichlet 0 0
+1 neumannrate 0 1
+2 dirichlet 0 0
+2 dirichlet 1 0
+
