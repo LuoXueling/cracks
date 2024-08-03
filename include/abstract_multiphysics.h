@@ -203,12 +203,27 @@ template <int dim> void AbstractMultiphysics<dim>::setup_mesh() {
   std::tuple<std::vector<Point<dim>>, std::vector<CellData<dim>>, SubCellData>
       info;
   info = GridTools::get_coarse_mesh_description(ctl.triangulation);
-  for (const CellData<1> i : std::get<2>(info).boundary_lines) {
-    int id = i.boundary_id;
-    if (std::find(boundary_ids.begin(), boundary_ids.end(), id) ==
-            boundary_ids.end() &&
-        id != -1 && id != 0) {
-      boundary_ids.push_back(id);
+  ctl.debug_dcout << "Searching boundaries" << std::endl;
+  if (dim == 2) {
+    for (const CellData<1> i : std::get<2>(info).boundary_lines) {
+      int id = i.boundary_id;
+      if (id == 0 || id == -1) continue;
+      if (std::find(boundary_ids.begin(), boundary_ids.end(), id) ==
+              boundary_ids.end() &&
+          id != -1 && id != 0) {
+        ctl.debug_dcout << "Find id" + std::to_string(id) << std::endl;
+        boundary_ids.push_back(id);
+      }
+    }
+  } else{
+    for (const CellData<2> i : std::get<2>(info).boundary_quads) {
+      int id = i.boundary_id;
+      if (id == 0 || id == -1) continue;
+      if (std::find(boundary_ids.begin(), boundary_ids.end(), id) ==
+              boundary_ids.end()) {
+        ctl.debug_dcout << "Find id" + std::to_string(id) << std::endl;
+        boundary_ids.push_back(id);
+      }
     }
   }
   ctl.boundary_ids = boundary_ids;
