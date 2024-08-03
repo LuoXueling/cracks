@@ -1,7 +1,7 @@
 subsection Project
-  set Project name = singleNotchTensionForce
+  set Project name = singleNotchShear
   set Mesh from = ../meshes/singleNotchRaw.inp
-  set Boundary from = ../meshes/singleNotchTensionCyclic_boundary.txt
+  set Boundary from = ../meshes/singleNotchShear_boundary.txt
   set Output directory = ../output/
   set Load sequence from = script
   set Enable phase field = true
@@ -12,8 +12,8 @@ end
 
 subsection Runtime
   # Time step
-  set Max No of timesteps = 100
-  set Timestep size = 0.1
+  set Max No of timesteps = 1500
+  set Timestep size = 1.0e-5
   set Timestep size to switch to = 1.0e-6
   set Switch timestep after steps = 500000
 
@@ -24,7 +24,7 @@ subsection Runtime
   set Upper Newton rho = 0.999
   set Line search maximum steps = 10
   set Line search damping = 0.5
-  set Save vtk per step = 1
+  set Save vtk per step = 10
 
   # Phase field scheme
   # "linear" to solve K_phi * phi = r_phi
