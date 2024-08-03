@@ -271,31 +271,28 @@ template <int dim> void Elasticity<dim>::compute_load(Controller<dim> &ctl) {
   std::unique_ptr<Decomposition<dim>> decomposition =
       select_decomposition<dim>(ctl.params.decomposition);
 
-  typename DoFHandler<dim>::active_cell_iterator cell = (this->dof_handler)
-                                                            .begin_active(),
-                                                 endc =
-                                                     (this->dof_handler).end();
   for (const int id : ctl.boundary_ids)
     load_value[id] = Tensor<1, dim>();
   const FEValuesExtractors::Vector displacement(0);
   ctl.debug_dcout << "Computing output - elasticity - load - computing"
                   << std::endl;
-  for (; cell != endc; ++cell)
+  for (const auto &cell : (this->dof_handler).active_cell_iterators())
     if (cell->is_locally_owned()) {
-      for (unsigned int face = 0; face < GeometryInfo<dim>::faces_per_cell;
-           ++face)
-        if (cell->face(face)->at_boundary() &&
-            cell->face(face)->boundary_id() != 0) {
+      for (const auto &face : cell->face_iterators())
+        if (face->at_boundary() && face->boundary_id() != 0) {
           fe_face_values.reinit(cell, face);
           fe_face_values[displacement].get_function_gradients(
               (this->solution), face_solution_grads);
 
           const std::vector<std::shared_ptr<PointHistory>> lqph =
               ctl.quadrature_point_history.get_data(cell);
+          double phasefield = 0;
+          for (unsigned int q_point = 0; q_point < n_q_points; ++q_point) {
+            phasefield += lqph[q_point]->get("Phase field", 0.0) / n_q_points;
+          }
+          double degradation = pow(1 - phasefield, 2) + ctl.params.constant_k;
 
           for (unsigned int q_point = 0; q_point < n_face_q_points; ++q_point) {
-            double phasefield = lqph[q_point]->get("Phase field", 0.0);
-            double degradation = pow(1 - phasefield, 2) + ctl.params.constant_k;
             const Tensor<2, dim> grad_u = face_solution_grads[q_point];
 
             const Tensor<2, dim> E = 0.5 * (grad_u + transpose(grad_u));
@@ -317,7 +314,7 @@ template <int dim> void Elasticity<dim>::compute_load(Controller<dim> &ctl) {
                 strain_symm, stress_0, energy_positive, energy_negative,
                 stress_positive, stress_negative, constitutive_law);
 
-            load_value[cell->face(face)->boundary_id()] +=
+            load_value[face->boundary_id()] +=
                 degradation * stress_positive *
                 fe_face_values.normal_vector(q_point) *
                 fe_face_values.JxW(q_point);
