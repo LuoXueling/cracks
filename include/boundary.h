@@ -50,13 +50,28 @@ void AbstractBoundary<dim>::vector_value_list(
     vector_value(points[p], value_list[p]);
 }
 
-template <int dim> class DisplacementBoundary : public AbstractBoundary<dim> {
+template <int dim>
+class GeneralDirichletBoundary : public AbstractBoundary<dim> {
 public:
-  explicit DisplacementBoundary(double present_time_inp, double velocity_inp);
+  GeneralDirichletBoundary(double present_time_inp, double val)
+      : AbstractBoundary<dim>(present_time_inp), constraint_value(val){};
 
-  virtual double value(const Point<dim> &p,
-                       unsigned int component) const override {
-    return this->present_time * velocity;
+  double value(const Point<dim> &p, unsigned int component) const override {
+    return this->constraint_value;
+  };
+
+private:
+  const double constraint_value;
+};
+
+template <int dim>
+class VelocityBoundary : public GeneralDirichletBoundary<dim> {
+public:
+  VelocityBoundary(double present_time_inp, double velocity_inp)
+      : GeneralDirichletBoundary<dim>(present_time_inp,
+                                      velocity_inp * present_time_inp){};
+};
+
   };
 
 private:

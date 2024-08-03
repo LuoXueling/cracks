@@ -30,7 +30,7 @@ public:
   };
   virtual void define_boundary_condition(std::string boundary_from,
                                          Controller<dim> &ctl);
-  virtual void setup_boundary_condition(Controller<dim> &ctl);
+  virtual void setup_dirichlet_boundary_condition(Controller<dim> &ctl);
   virtual void setup_system(Controller<dim> &ctl);
   virtual void record_old_solution(Controller<dim> &ctl);
   virtual void return_old_solution(Controller<dim> &ctl);
@@ -67,8 +67,8 @@ public:
 
   std::vector<ComponentMask> component_masks;
   std::vector<std::tuple<unsigned int, std::string, unsigned int, double>>
-      boundary_info;
 
+      dirichlet_boundary_info;
   /*
    * Solutions
    */
@@ -119,7 +119,7 @@ template <int dim> void AbstractField<dim>::setup_system(Controller<dim> &ctl) {
 
     constraints_all.clear();
     constraints_all.reinit(locally_relevant_dofs);
-    setup_boundary_condition(ctl);
+    setup_dirichlet_boundary_condition(ctl);
     constraints_all.close();
   }
 
@@ -186,29 +186,42 @@ void AbstractField<dim>::define_boundary_condition(
         continue;
       }
       std::istringstream iss(line);
-      iss >> boundary_id >> constraint_type >> constrained_dof >>
-          constraint_value;
-      std::tuple<unsigned int, std::string, unsigned int, double> info(
-          boundary_id, constraint_type, constrained_dof, constraint_value);
-      boundary_info.push_back(info);
+      iss >> boundary_id >> constraint_type;
+      if (constraint_type == "velocity" || constraint_type == "dirichlet") {
+        iss >> constrained_dof >> constraint_value;
+        std::tuple<unsigned int, std::string, unsigned int, double> info(
+            boundary_id, constraint_type, constrained_dof, constraint_value);
+        dirichlet_boundary_info.push_back(info);
+      } else {
+        AssertThrow(false, ExcNotImplemented());
+      }
     }
     fb.close();
   }
 }
 
 template <int dim>
-void AbstractField<dim>::setup_boundary_condition(Controller<dim> &ctl) {
+void AbstractField<dim>::setup_dirichlet_boundary_condition(
+    Controller<dim> &ctl) {
+  // Dealing with dirichlet boundary conditions
   constraints_all.clear();
   constraints_all.reinit(locally_relevant_dofs);
   constraints_all.merge(constraints_hanging_nodes,
                         ConstraintMatrix::right_object_wins);
   for (const std::tuple<unsigned int, std::string, unsigned int, double> &info :
-       boundary_info) {
-    if (std::get<1>(info) == "value") {
+       dirichlet_boundary_info) {
+    if (std::get<1>(info) == "velocity") {
       VectorTools::interpolate_boundary_values(
           dof_handler, std::get<0>(info),
-          DisplacementBoundary<dim>(ctl.time, std::get<3>(info)),
+          VelocityBoundary<dim>(ctl.time, std::get<3>(info)), constraints_all,
+          component_masks[std::get<2>(info)]);
+    } else if (std::get<1>(info) == "dirichlet") {
+      VectorTools::interpolate_boundary_values(
+          dof_handler, std::get<0>(info),
+          GeneralDirichletBoundary<dim>(ctl.time, std::get<3>(info)),
           constraints_all, component_masks[std::get<2>(info)]);
+    } else {
+      AssertThrow(false, ExcNotImplemented());
     }
   }
   constraints_all.close();
@@ -221,7 +234,7 @@ double AbstractField<dim>::update_linear_system(Controller<dim> &ctl) {
   distributed_solution = solution;
 
   ctl.debug_dcout << "Solve linear system - initialize" << std::endl;
-  setup_boundary_condition(ctl);
+  setup_dirichlet_boundary_condition(ctl);
   distribute_all_constraints(distributed_solution, ctl);
   solution = distributed_solution;
   ctl.debug_dcout << "Solve linear system - assemble" << std::endl;
@@ -257,7 +270,7 @@ double AbstractField<dim>::update_newton_system(Controller<dim> &ctl) {
   // variational equations:
   ctl.debug_dcout << "Solve Newton system - Newton iteration - initialize"
                   << std::endl;
-  setup_boundary_condition(ctl);
+  setup_dirichlet_boundary_condition(ctl);
   distribute_all_constraints(distributed_solution, ctl);
   solution = distributed_solution;
   ctl.debug_dcout
