@@ -20,7 +20,6 @@
 int main(int argc, char *argv[]) {
   try {
     using namespace dealii;
-    MultithreadInfo::set_thread_limit(4);
     Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
 
     Parameters::AllParameters params;
