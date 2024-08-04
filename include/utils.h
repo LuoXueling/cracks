@@ -183,6 +183,24 @@ inline bool checkFileExsit(const std::string &name) {
   return (stat(name.c_str(), &buffer) == 0);
 }
 
+double triangular_wave(const double t, const double amplitude,
+                       const double mean, const double frequency) {
+  double T = 1 / frequency;
+  double t_reduce = std::fmod(t, T);
+  if (t_reduce <= 0.25 * T) {
+    return mean + amplitude / (0.25 * T) * t_reduce;
+  } else if (t_reduce <= 0.75 * T) {
+    return mean + amplitude - amplitude / (0.25 * T) * (t_reduce - 0.25 * T);
+  } else {
+    return mean - amplitude + amplitude / (0.25 * T) * (t_reduce - 0.75 * T);
+  }
+}
+
+double sine_wave(const double t, const double amplitude, const double mean,
+                 const double frequency) {
+  return amplitude * sin(2 * numbers::PI * frequency * t) + mean;
+}
+
 // https://stackoverflow.com/questions/13665090/trying-to-write-stdout-and-file-at-the-same-time
 struct teebuf : std::streambuf {
   std::streambuf *sb1_;

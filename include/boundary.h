@@ -6,6 +6,7 @@
 #define CRACKS_BOUNDARY_H
 
 #include "dealii_includes.h"
+#include "utils.h"
 #include <cmath>
 
 // Can only use apply AbstractBoundary condition on one dof
@@ -65,8 +66,10 @@ public:
     return this->constraint_value;
   };
 
+  double set_constraint(double val) { constraint_value = val; }
+
 private:
-  const double constraint_value;
+  double constraint_value;
 };
 
 template <int dim>
@@ -80,17 +83,53 @@ public:
 };
 
 template <int dim>
-std::unique_ptr<Function<dim>> select_dirichlet_boundary(
-    std::tuple<unsigned int, std::string, unsigned int, double> dirichlet_info,
-    unsigned int n_components, double time) {
+class TriangularWaveDirichletBoundary : public GeneralDirichletBoundary<dim> {
+public:
+  TriangularWaveDirichletBoundary(double present_time_inp,
+                                  std::vector<double> &frequency_mean_amplitude,
+                                  unsigned int n_components_inp)
+      : GeneralDirichletBoundary<dim>(
+            present_time_inp,
+            triangular_wave(present_time_inp, frequency_mean_amplitude[2],
+                            frequency_mean_amplitude[1],
+                            frequency_mean_amplitude[0]),
+            n_components_inp){};
+};
+
+template <int dim>
+class SineWaveDirichletBoundary : public GeneralDirichletBoundary<dim> {
+public:
+  SineWaveDirichletBoundary(double present_time_inp,
+                            std::vector<double> &frequency_mean_amplitude,
+                            unsigned int n_components_inp)
+      : GeneralDirichletBoundary<dim>(
+            present_time_inp,
+            sine_wave(present_time_inp, frequency_mean_amplitude[2],
+                      frequency_mean_amplitude[1], frequency_mean_amplitude[0]),
+            n_components_inp){};
+};
+
+template <int dim>
+std::unique_ptr<Function<dim>>
+select_dirichlet_boundary(std::tuple<unsigned int, std::string, unsigned int,
+                                     double, std::vector<double>>
+                              dirichlet_info,
+                          unsigned int n_components, double time) {
   std::string boundary_type = std::get<1>(dirichlet_info);
   double constraint_value = std::get<3>(dirichlet_info);
+  std::vector<double> additional_info = std::get<4>(dirichlet_info);
   if (boundary_type == "velocity") {
     return std::make_unique<VelocityBoundary<dim>>(time, constraint_value,
-                                            n_components);
+                                                   n_components);
   } else if (boundary_type == "dirichlet") {
-    return std::make_unique<GeneralDirichletBoundary<dim>>(time, constraint_value,
-                                                    n_components);
+    return std::make_unique<GeneralDirichletBoundary<dim>>(
+        time, constraint_value, n_components);
+  } else if (boundary_type == "triangulardirichlet") {
+    return std::make_unique<TriangularWaveDirichletBoundary<dim>>(
+        time, additional_info, n_components);
+  } else if (boundary_type == "sinedirichlet") {
+    return std::make_unique<SineWaveDirichletBoundary<dim>>(
+        time, additional_info, n_components);
   } else {
     AssertThrow(false, ExcNotImplemented());
   }
@@ -133,18 +172,35 @@ public:
 };
 
 template <int dim>
-class SineNeumannBoundary : public GeneralNeumannBoundary<dim> {
+class TriangularWaveNeumannBoundary : public GeneralNeumannBoundary<dim> {
 public:
-  SineNeumannBoundary(double present_time_inp,
-                      std::vector<double> &constraint_vector_inp,
-                      std::vector<double> &frequency_mean_amplitude,
-                      unsigned int n_components_inp)
+  TriangularWaveNeumannBoundary(double present_time_inp,
+                                std::vector<double> &constraint_vector_inp,
+                                std::vector<double> &frequency_mean_amplitude,
+                                unsigned int n_components_inp)
       : GeneralNeumannBoundary<dim>(present_time_inp, constraint_vector_inp,
                                     n_components_inp) {
-    double multiplier = frequency_mean_amplitude[2] *
-                            sin(2 * numbers::PI * frequency_mean_amplitude[0] *
-                                present_time_inp) +
-                        frequency_mean_amplitude[1];
+    double multiplier = triangular_wave(
+        present_time_inp, frequency_mean_amplitude[2],
+        frequency_mean_amplitude[1], frequency_mean_amplitude[0]);
+    ;
+    this->multiply(multiplier);
+  };
+};
+
+template <int dim>
+class SineWaveNeumannBoundary : public GeneralNeumannBoundary<dim> {
+public:
+  SineWaveNeumannBoundary(double present_time_inp,
+                          std::vector<double> &constraint_vector_inp,
+                          std::vector<double> &frequency_mean_amplitude,
+                          unsigned int n_components_inp)
+      : GeneralNeumannBoundary<dim>(present_time_inp, constraint_vector_inp,
+                                    n_components_inp) {
+    double multiplier =
+        sine_wave(present_time_inp, frequency_mean_amplitude[2],
+                  frequency_mean_amplitude[1], frequency_mean_amplitude[0]);
+    ;
     this->multiply(multiplier);
   };
 };
@@ -165,7 +221,10 @@ select_neumann_boundary(std::tuple<unsigned int, std::string,
     return std::make_unique<NeumannRateBoundary<dim>>(time, vector,
                                                       n_components);
   } else if (boundary_type == "sineneumann") {
-    return std::make_unique<SineNeumannBoundary<dim>>(
+    return std::make_unique<SineWaveNeumannBoundary<dim>>(
+        time, vector, additional_info, n_components);
+  } else if (boundary_type == "triangularneumann") {
+    return std::make_unique<TriangularWaveNeumannBoundary<dim>>(
         time, vector, additional_info, n_components);
   } else {
     AssertThrow(false, ExcNotImplemented());

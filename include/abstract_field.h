@@ -71,7 +71,8 @@ public:
   AffineConstraints<double> constraints_all;
 
   std::vector<ComponentMask> component_masks;
-  std::vector<std::tuple<unsigned int, std::string, unsigned int, double>>
+  std::vector<std::tuple<unsigned int, std::string, unsigned int, double,
+                         std::vector<double>>>
       dirichlet_boundary_info;
   std::vector<std::tuple<unsigned int, std::string, std::vector<double>,
                          std::vector<double>>>
@@ -196,14 +197,30 @@ void AbstractField<dim>::define_boundary_condition(
       }
       std::istringstream iss(line);
       iss >> boundary_id >> constraint_type;
-      if (constraint_type == "velocity" || constraint_type == "dirichlet") {
-        iss >> constrained_dof >> constraint_value;
-        std::tuple<unsigned int, std::string, unsigned int, double> info(
-            boundary_id, constraint_type, constrained_dof, constraint_value);
+      if (constraint_type == "velocity" || constraint_type == "dirichlet" ||
+          constraint_type == "triangulardirichlet" ||
+          constraint_type == "sinedirichlet") {
+        std::vector<double> additional_info;
+        if (constraint_type == "velocity" || constraint_type == "dirichlet") {
+          iss >> constrained_dof >> constraint_value;
+        } else {
+          iss >> constrained_dof;
+          constraint_value = 0.0;
+          double temp_value;
+          do {
+            iss >> temp_value;
+            additional_info.push_back(temp_value);
+          } while (!iss.eof());
+        }
+        std::tuple<unsigned int, std::string, unsigned int, double,
+                   std::vector<double>>
+            info(boundary_id, constraint_type, constrained_dof,
+                 constraint_value, additional_info);
         dirichlet_boundary_info.push_back(info);
       } else if (constraint_type == "neumann" ||
                  constraint_type == "neumannrate" ||
-                 constraint_type == "sineneumann") {
+                 constraint_type == "sineneumann" ||
+                 constraint_type == "triangularneumann") {
         std::vector<double> constraint_vector;
         std::vector<double> additional_info;
         double temp_value;
@@ -236,8 +253,9 @@ void AbstractField<dim>::setup_dirichlet_boundary_condition(
   constraints_all.reinit(locally_relevant_dofs);
   constraints_all.merge(constraints_hanging_nodes,
                         ConstraintMatrix::right_object_wins);
-  for (const std::tuple<unsigned int, std::string, unsigned int, double> &info :
-       dirichlet_boundary_info) {
+  for (const std::tuple<unsigned int, std::string, unsigned int, double,
+                        std::vector<double>> &info : dirichlet_boundary_info) {
+    ctl.debug_dcout << "Setting dirichlet boundary" << std::endl;
     std::unique_ptr<Function<dim>> dirichlet_boundary =
         select_dirichlet_boundary<dim>(info, fe.n_components(), ctl.time);
     VectorTools::interpolate_boundary_values(

@@ -2,11 +2,12 @@
 # Dirichlet boundaries:
 # For "velocity", the fourth number is in mm/s (or the unit of the rate of the field variable)
 # For "dirichlet", the fourth number is in mm (or the unit of the field variable)
+# For "sinedirichlet"/"triangulardirichlet", the fourth part is frequency(Hz), mean(mm), and amplitude(mm), for example "20 1 2"
 # Neumann boundaries:
 # For Neumann boundaries, the third part is a series of floats denoting the vector of the neumann boundary (set 0 if is a scalar field).
 # For "neumann", the third part is in MPa (or the unit of gradient)
 # For "neumannrate", the third part is in MPa/s (or the unit of the rate of gradient)
-# For "sineneumann", the third part is dimensionless. And add a fourth part being frequency(Hz), mean(MPa), and amplitude(MPa), for example "20 1 2".
+# For "sineneumann"/"triangularneumann", the third part is dimensionless. And add a fourth part being frequency(Hz), mean(MPa), and amplitude(MPa), for example "20 1 2"
 1 dirichlet 0 0
 1 sineneumann 0 1 0.1 10 20
 2 dirichlet 0 0
