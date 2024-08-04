@@ -406,13 +406,14 @@ double AbstractField<dim>::update_newton_system(Controller<dim> &ctl) {
 
       if (new_newton_residual < newton_residual)
         break;
-      else {
+      else if (ctl.params.line_search_damping >= 1) {
+        throw SolverControl::NoConvergence(0, 0);
+      } else {
         distributed_solution += system_solution;
         distribute_all_constraints(distributed_solution, ctl);
         solution = distributed_solution;
+        system_solution *= ctl.params.line_search_damping;
       }
-
-      system_solution *= ctl.params.line_search_damping;
     }
     old_newton_residual = newton_residual;
     newton_residual = new_newton_residual;

@@ -120,7 +120,7 @@ public:
   std::vector<int> boundary_ids;
 
   CellDataStorage<typename Triangulation<dim>::cell_iterator, PointHistory>
-      quadrature_point_history;
+      quadrature_point_history, old_quadrature_point_history;
 };
 
 template <int dim>
@@ -149,6 +149,8 @@ template <int dim> void Controller<dim>::initialize_point_history() {
   for (auto cell : triangulation.active_cell_iterators())
     if (cell->is_locally_owned()) {
       quadrature_point_history.template initialize<PointHistory>(
+          cell, quadrature_formula.size());
+      old_quadrature_point_history.template initialize<PointHistory>(
           cell, quadrature_formula.size());
     }
 }

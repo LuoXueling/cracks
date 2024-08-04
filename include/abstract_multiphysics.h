@@ -6,6 +6,7 @@
 #define CRACKS_ABSTRACT_MULTIPHYSICS_H
 
 #include "abstract_field.h"
+#include "adaptive_timestep.h"
 #include "controller.h"
 #include "dealii_includes.h"
 #include "elasticity.h"
@@ -107,11 +108,13 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
 
     ctl.time += ctl.current_timestep;
 
+    std::unique_ptr<AdaptiveTimeStep<dim>> time_stepping =
+        select_adaptive_timestep<dim>(ctl.params.adaptive_timestep);
+
     do {
       // The Newton method can either stagnate or the linear solver
       // might not converge. To not abort the program we catch the
       // exception and retry with a smaller step.
-      //          use_old_timestep_pf = false;
       ctl.debug_dcout << "Solve Newton system - enter loop" << std::endl;
       record_old_solution();
       try {
@@ -119,16 +122,9 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
                         << std::endl;
         newton_reduction = staggered_scheme();
         while (newton_reduction > ctl.params.upper_newton_rho) {
-          //              use_old_timestep_pf = true;
-          ctl.time -= ctl.current_timestep;
-          ctl.current_timestep = ctl.current_timestep / 10.0;
-          ctl.time += ctl.current_timestep;
+          time_stepping->execute(ctl);
           return_old_solution();
           newton_reduction = staggered_scheme();
-
-          if (ctl.current_timestep < 1.0e-9) {
-            AssertThrow(false, ExcInternalError("Step size too small"))
-          }
         }
 
         break;
@@ -136,10 +132,8 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
       } catch (SolverControl::NoConvergence &e) {
         ctl.dcout << "Solver did not converge! Adjusting time step."
                   << std::endl;
-        ctl.time -= ctl.current_timestep;
+        time_stepping->execute(ctl);
         return_old_solution();
-        ctl.current_timestep = ctl.current_timestep / 10.0;
-        ctl.time += ctl.current_timestep;
       }
     } while (true);
 
@@ -207,7 +201,8 @@ template <int dim> void AbstractMultiphysics<dim>::setup_mesh() {
   if (dim == 2) {
     for (const CellData<1> i : std::get<2>(info).boundary_lines) {
       int id = i.boundary_id;
-      if (id == 0 || id == -1) continue;
+      if (id == 0 || id == -1)
+        continue;
       if (std::find(boundary_ids.begin(), boundary_ids.end(), id) ==
               boundary_ids.end() &&
           id != -1 && id != 0) {
@@ -215,12 +210,13 @@ template <int dim> void AbstractMultiphysics<dim>::setup_mesh() {
         boundary_ids.push_back(id);
       }
     }
-  } else{
+  } else {
     for (const CellData<2> i : std::get<2>(info).boundary_quads) {
       int id = i.boundary_id;
-      if (id == 0 || id == -1) continue;
+      if (id == 0 || id == -1)
+        continue;
       if (std::find(boundary_ids.begin(), boundary_ids.end(), id) ==
-              boundary_ids.end()) {
+          boundary_ids.end()) {
         ctl.debug_dcout << "Find id" + std::to_string(id) << std::endl;
         boundary_ids.push_back(id);
       }
