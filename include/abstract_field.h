@@ -172,6 +172,8 @@ template <int dim> double AbstractField<dim>::update(Controller<dim> &ctl) {
     return 0.0;
   } else if (update_scheme_timestep == "newton") {
     return update_newton_system(ctl);
+  } else {
+    AssertThrow(false, ExcNotImplemented());
   }
 }
 

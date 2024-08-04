@@ -77,7 +77,7 @@ public:
       Tensor<2, dim> kron;
       double eig_val = std::get<0>(res[i]);
       Tensor<1, dim> eig_vec = std::get<1>(res[i]);
-      tensor_product<dim>(kron, eig_vec, eig_vec);
+      Tensors::tensor_product<dim>(kron, eig_vec, eig_vec);
       E_pos += 0.5 * (eig_val + std::abs(eig_val)) * kron;
       E_neg += 0.5 * (eig_val - std::abs(eig_val)) * kron;
     }

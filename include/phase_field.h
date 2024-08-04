@@ -245,6 +245,8 @@ void PhaseField<dim>::output_results(DataOut<dim> &data_out,
 
   data_out.add_data_vector((this->dof_handler), (this->solution),
                            "Phase_field");
+  PointHistoryProcessor<dim> hist_processor("Driving force", this->fe, ctl);
+  hist_processor.add_data_scalar(this->solution, data_out, this->dof_handler, ctl);
 }
 
 template <int dim>

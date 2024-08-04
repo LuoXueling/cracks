@@ -88,5 +88,6 @@ subsection Finite element system
   # and this is how phi_ref is determined.
   set Phase field initial influential ratio (for refinement) = 2
   set Phase field final influential ratio (for refinement) = 3
+  set Minimum relative size of refined cells w.r.t l_phi = 0.5
 end
 

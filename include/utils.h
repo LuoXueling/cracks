@@ -153,7 +153,18 @@ template <int dim> inline double get_divergence_u(const Tensor<2, dim> grad_u) {
   return tmp;
 }
 
-} // namespace Tensors
+template <int dim>
+void to_voigt(const Tensor<2, dim> &in, Vector<double> &out) {
+  for (unsigned int i_comp = 0; i_comp < dim; ++i_comp) {
+    for (unsigned int j_comp = i_comp; j_comp < dim; ++j_comp) {
+      if (i_comp == j_comp) {
+        out[i_comp] = in[i_comp][j_comp];
+      } else {
+        out[dim - 1 + i_comp + j_comp] = in[i_comp][j_comp];
+      }
+    }
+  }
+}
 
 template <int dim>
 void tensor_product(Tensor<2, dim> &kronecker, const Tensor<1, dim> &x,
@@ -163,7 +174,9 @@ void tensor_product(Tensor<2, dim> &kronecker, const Tensor<1, dim> &x,
       kronecker[i][j] = x[i] * y[j];
     }
   }
-};
+}
+
+} // namespace Tensors
 
 inline bool checkFileExsit(const std::string &name) {
   struct stat buffer;

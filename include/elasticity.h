@@ -240,6 +240,89 @@ template <int dim> unsigned int Elasticity<dim>::solve(Controller<dim> &ctl) {
   }
 }
 
+template <int dim> class StressProcessor : public CellProcessor<dim> {
+public:
+  StressProcessor(ConstitutiveLaw<dim> &constitutive_law_in,
+                  FESystem<dim> &fe_in, Controller<dim> &ctl_in)
+      : CellProcessor<dim>(fe_in, ctl_in),
+        decomposition(select_decomposition<dim>(ctl_in.params.decomposition)),
+        constitutive_law(constitutive_law_in){};
+
+  ConstitutiveLaw<dim> constitutive_law;
+  std::unique_ptr<Decomposition<dim>> decomposition;
+  void
+  get_q_vector_values(std::vector<Vector<double>> &data,
+                      const std::vector<std::shared_ptr<PointHistory>> &lqph,
+                      LA::MPI::Vector &solution,
+                      Controller<dim> &ctl) override {
+    const FEValuesExtractors::Vector displacement(0);
+    std::vector<Tensor<2, dim>> old_displacement_grads(
+        ctl.quadrature_formula.size());
+    (this->fe_values)[displacement].get_function_gradients(
+        solution, old_displacement_grads);
+    for (unsigned int q = 0; q < ctl.quadrature_formula.size(); ++q) {
+      double phasefield = lqph[q]->get("Phase field", 0.0);
+      double degradation = pow(1 - phasefield, 2) + ctl.params.constant_k;
+
+      const Tensor<2, dim> grad_u = old_displacement_grads[q];
+      const Tensor<2, dim> E = 0.5 * (grad_u + transpose(grad_u));
+
+      // Solution A:
+      SymmetricTensor<2, dim> strain_symm;
+      SymmetricTensor<2, dim> stress_0;
+      SymmetricTensor<4, dim> elasticity_tensor;
+      constitutive_law.get_stress_strain_tensor(E, strain_symm, stress_0,
+                                                elasticity_tensor);
+      double energy_positive;
+      double energy_negative;
+      SymmetricTensor<2, dim> stress_positive;
+      SymmetricTensor<2, dim> stress_negative;
+      SymmetricTensor<4, dim> elasticity_tensor_positive;
+      SymmetricTensor<4, dim> elasticity_tensor_negative;
+
+      decomposition->decompose_stress_and_energy(
+          strain_symm, stress_0, energy_positive, energy_negative,
+          stress_positive, stress_negative, constitutive_law);
+      Vector<double> stress_voigt(get_n_components());
+      Tensors::to_voigt<dim>(degradation * stress_positive + stress_negative,
+                             stress_voigt);
+      data[q] = stress_voigt;
+    }
+  }
+
+  std::string get_name() override { return "Stress_voigt"; };
+
+  unsigned int get_n_components() { return (dim == 2 ? 3 : 6); };
+};
+
+template <int dim> class StrainProcessor : public CellProcessor<dim> {
+public:
+  StrainProcessor(FESystem<dim> &fe_in, Controller<dim> &ctl_in)
+      : CellProcessor<dim>(fe_in, ctl_in){};
+
+  void get_q_vector_values(
+      std::vector<Vector<double>> &data,
+      const std::vector<std::shared_ptr<PointHistory>> & /*lqph*/,
+      LA::MPI::Vector &solution, Controller<dim> &ctl) override {
+    const FEValuesExtractors::Vector displacement(0);
+    std::vector<Tensor<2, dim>> old_displacement_grads(
+        ctl.quadrature_formula.size());
+    (this->fe_values)[displacement].get_function_gradients(
+        solution, old_displacement_grads);
+    for (unsigned int q = 0; q < ctl.quadrature_formula.size(); ++q) {
+      const Tensor<2, dim> grad_u = old_displacement_grads[q];
+      const Tensor<2, dim> E = 0.5 * (grad_u + transpose(grad_u));
+      Vector<double> E_voigt(get_n_components());
+      Tensors::to_voigt<dim>(E, E_voigt);
+      data[q] = E_voigt;
+    }
+  }
+
+  std::string get_name() override { return "Strain_voigt"; };
+
+  unsigned int get_n_components() { return (dim == 2 ? 3 : 6); };
+};
+
 template <int dim>
 void Elasticity<dim>::output_results(DataOut<dim> &data_out,
                                      Controller<dim> &ctl) {
@@ -252,9 +335,15 @@ void Elasticity<dim>::output_results(DataOut<dim> &data_out,
   data_out.add_data_vector((this->dof_handler), (this->solution),
                            solution_names, data_component_interpretation);
   ctl.debug_dcout << "Computing output - elasticity - strain" << std::endl;
-  data_out.add_data_vector((this->dof_handler), (this->solution), strain);
+  //   data_out.add_data_vector((this->dof_handler), (this->solution), strain);
+  StrainProcessor<dim> strain_processor(this->fe, ctl);
+  strain_processor.add_data_vector(this->solution, data_out, this->dof_handler,
+                                   ctl);
   ctl.debug_dcout << "Computing output - elasticity - stress" << std::endl;
-  data_out.add_data_vector((this->dof_handler), (this->solution), stress);
+  //  data_out.add_data_vector((this->dof_handler), (this->solution), stress);
+  StressProcessor<dim> stress_processor(constitutive_law, this->fe, ctl);
+  stress_processor.add_data_vector(this->solution, data_out, this->dof_handler,
+                                   ctl);
   // Record statistics
   ctl.debug_dcout << "Computing output - elasticity - load" << std::endl;
   compute_load(ctl);
