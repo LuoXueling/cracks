@@ -29,46 +29,65 @@ public:
       return default_value;
     }
   };
+  double get_increment(std::string name, double default_value = 0.0) const {
+    // This function has to be const for pack_values so we cannot use
+    // solution_dict[name]
+    try {
+      auto pos = solution_increment.find(name);
+      if (pos == solution_increment.end()) {
+        return default_value;
+      } else
+        return pos->second;
+    } catch (...) {
+      return default_value;
+    }
+  };
   void finalize() {
     typename std::map<std::string, double>::iterator it;
     for (it = solution_dict_temp.begin(); it != solution_dict_temp.end();
          it++) {
       std::string scheme = finalize_scheme[it->first];
+      double res;
       if (scheme == "latest") {
-        solution_dict[it->first] = it->second;
+        res = it->second;
       } else if (scheme == "max") {
-        solution_dict[it->first] =
-            std::max(it->second, get(it->first, -1.0e10));
+        res = std::max(it->second, get(it->first, -1.0e10));
       } else if (scheme == "min") {
-        solution_dict[it->first] = std::min(it->second, get(it->first, 1.0e10));
+        res = std::min(it->second, get(it->first, 1.0e10));
       } else if (scheme == "accumulate") {
-        solution_dict[it->first] = it->second + get(it->first, 0.0);
+        res = it->second + get(it->first, 0.0);
       } else if (scheme == "multiplicative") {
-        solution_dict[it->first] = it->second * get(it->first, 1.0);
+        res = it->second * get(it->first, 1.0);
       } else {
         AssertThrow(false, ExcNotImplemented(
                                "Point history update scheme is illegal."));
       }
+      solution_increment[it->first] = res - solution_dict[it->first];
+      solution_dict[it->first] = res;
     }
   }
 
   unsigned int number_of_values() const override {
-    return finalize_scheme.size();
+    return finalize_scheme.size() * 2;
   }
 
   void pack_values(std::vector<double> &values) const override {
     Assert(values.size() == finalize_scheme.size(), ExcInternalError());
     std::vector<std::string> names = get_names();
-    for (unsigned int i = 0; i < finalize_scheme.size(); ++i) {
-      values[i] = get(names[i], 0.0);
+    for (unsigned int i = 0; i < finalize_scheme.size() * 2; ++i) {
+      values[i] = i < finalize_scheme.size() ? get(names[i], 0.0)
+                                             : get_increment(names[i], 0.0);
     }
   }
 
   void unpack_values(const std::vector<double> &values) override {
     Assert(values.size() == finalize_scheme.size(), ExcInternalError());
     std::vector<std::string> names = get_names();
-    for (unsigned int i = 0; i < finalize_scheme.size(); ++i) {
-      solution_dict[names[i]] = values[i];
+    for (unsigned int i = 0; i < finalize_scheme.size() * 2; ++i) {
+      if (i < finalize_scheme.size())
+        solution_dict[names[i]] = values[i];
+      else
+        solution_increment[names[i]] = values[i];
     }
   }
 
@@ -85,6 +104,7 @@ public:
 private:
   std::map<std::string, double> solution_dict_temp;
   std::map<std::string, double> solution_dict;
+  std::map<std::string, double> solution_increment;
 
   inline static std::map<std::string, std::string> finalize_scheme;
 };
