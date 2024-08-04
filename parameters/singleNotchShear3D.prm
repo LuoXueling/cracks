@@ -7,7 +7,7 @@ subsection Project
   set Enable phase field = true
 
   # Debug
-  set Debug output = true
+  set Debug output = false
 end
 
 subsection Runtime
@@ -59,7 +59,7 @@ subsection Finite element system
   set Quadrature order  = 3
 
   # Mesh refinement
-  set Refine = false
+  set Refine = true
 
   # During nucleation of cracks, the diffused crack is
   # phi*exp(-|x|/l_phi), and the absolute gradient field is
