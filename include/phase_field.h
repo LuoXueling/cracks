@@ -8,6 +8,7 @@
 #include "abstract_field.h"
 #include "constitutive_law.h"
 #include "dealii_includes.h"
+#include "degradation.h"
 #include "parameters.h"
 #include "post_processors.h"
 #include "utils.h"
@@ -56,6 +57,12 @@ void PhaseField<dim>::assemble_linear_system(Controller<dim> &ctl) {
 
   std::vector<double> Nphi_kq(dofs_per_cell);
   std::vector<Tensor<1, dim>> Bphi_kq(dofs_per_cell);
+
+  if (ctl.params.degradation != "quadratic") {
+    AssertThrow(false,
+                ExcInternalError("Cannot solve linear equations for phase "
+                                 "field when degradation is not quadratic."))
+  }
 
   for (const auto &cell : (this->dof_handler).active_cell_iterators())
     if (cell->is_locally_owned()) {
@@ -136,6 +143,9 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
   std::vector<double> Nphi_kq(dofs_per_cell);
   std::vector<Tensor<1, dim>> Bphi_kq(dofs_per_cell);
 
+  std::unique_ptr<Degradation<dim>> degradation =
+      select_degradation<dim>(ctl.params.degradation);
+
   for (const auto &cell : (this->dof_handler).active_cell_iterators())
     if (cell->is_locally_owned()) {
       cell_matrix = 0;
@@ -166,14 +176,18 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
                     (ctl.params.Gc * ctl.params.l_phi * Bphi_kq[i] *
                          Bphi_kq[j] +
                      Nphi_kq[i] * Nphi_kq[j] *
-                         (2 * H + ctl.params.Gc / ctl.params.l_phi)) *
+                         (degradation->second_derivative(
+                              old_phasefield_values[q], lqph[q], ctl) *
+                              H +
+                          ctl.params.Gc / ctl.params.l_phi)) *
                     fe_values.JxW(q);
               }
             }
           }
 
           cell_rhs(i) +=
-              (-2 * (1 - old_phasefield_values[q]) * Nphi_kq[i] * H +
+              (degradation->derivative(old_phasefield_values[q], lqph[q], ctl) *
+                   Nphi_kq[i] * H +
                ctl.params.Gc *
                    (ctl.params.l_phi * old_phasefield_grads[q] * Bphi_kq[i] +
                     1 / ctl.params.l_phi * old_phasefield_values[q] *
@@ -205,11 +219,10 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
 
 template <int dim> unsigned int PhaseField<dim>::solve(Controller<dim> &ctl) {
 
-  if (ctl.params.direct_solver){
+  if (ctl.params.direct_solver) {
     SolverControl solver_control;
     TrilinosWrappers::SolverDirect solver(solver_control);
-    solver.solve(this->system_matrix, this->system_solution,
-                 this->system_rhs);
+    solver.solve(this->system_matrix, this->system_solution, this->system_rhs);
     return 1;
   } else {
     SolverControl solver_control((this->dof_handler).n_dofs(),
@@ -246,7 +259,8 @@ void PhaseField<dim>::output_results(DataOut<dim> &data_out,
   data_out.add_data_vector((this->dof_handler), (this->solution),
                            "Phase_field");
   PointHistoryProcessor<dim> hist_processor("Driving force", this->fe, ctl);
-  hist_processor.add_data_scalar(this->solution, data_out, this->dof_handler, ctl);
+  hist_processor.add_data_scalar(this->solution, data_out, this->dof_handler,
+                                 ctl);
 }
 
 template <int dim>

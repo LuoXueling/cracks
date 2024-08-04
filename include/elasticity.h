@@ -9,6 +9,7 @@
 #include "constitutive_law.h"
 #include "dealii_includes.h"
 #include "decomposition.h"
+#include "degradation.h"
 #include "parameters.h"
 #include "post_processors.h"
 #include "utils.h"
@@ -88,6 +89,9 @@ void Elasticity<dim>::assemble_newton_system(bool residual_only,
   // Determine decomposition
   std::unique_ptr<Decomposition<dim>> decomposition =
       select_decomposition<dim>(ctl.params.decomposition);
+  // Determine degradation
+  std::unique_ptr<Degradation<dim>> degradation =
+      select_degradation<dim>(ctl.params.degradation);
 
   for (const auto &cell : (this->dof_handler).active_cell_iterators())
     if (cell->is_locally_owned()) {
@@ -107,7 +111,7 @@ void Elasticity<dim>::assemble_newton_system(bool residual_only,
       for (unsigned int q = 0; q < n_q_points; ++q) {
         // Get history
         double phasefield = lqph[q]->get("Phase field", 0.0);
-        double degradation = pow(1 - phasefield, 2) + ctl.params.constant_k;
+        double degrade = degradation->value(phasefield, lqph[q], ctl);
 
         // Values of fields and their derivatives
         for (unsigned int k = 0; k < dofs_per_cell; ++k) {
@@ -161,7 +165,7 @@ void Elasticity<dim>::assemble_newton_system(bool residual_only,
                 cell_matrix(i, j) +=
                     // Solution A:
                     (Bu_kq_symmetric[i] *
-                     (degradation * elasticity_tensor_positive +
+                     (degrade * elasticity_tensor_positive +
                       elasticity_tensor_negative) *
                      Bu_kq_symmetric[j]) *
                     // Solution B (without split):
@@ -176,10 +180,9 @@ void Elasticity<dim>::assemble_newton_system(bool residual_only,
             }
           }
 
-          cell_rhs(i) +=
-              scalar_product(Bu_kq[i],
-                             degradation * stress_positive + stress_negative) *
-              fe_values.JxW(q);
+          cell_rhs(i) += scalar_product(Bu_kq[i], degrade * stress_positive +
+                                                      stress_negative) *
+                         fe_values.JxW(q);
         }
 
         // Update history
@@ -260,9 +263,12 @@ public:
         ctl.quadrature_formula.size());
     (this->fe_values)[displacement].get_function_gradients(
         solution, old_displacement_grads);
+    // Determine degradation
+    std::unique_ptr<Degradation<dim>> degradation =
+        select_degradation<dim>(ctl.params.degradation);
     for (unsigned int q = 0; q < ctl.quadrature_formula.size(); ++q) {
       double phasefield = lqph[q]->get("Phase field", 0.0);
-      double degradation = pow(1 - phasefield, 2) + ctl.params.constant_k;
+      double degrade = degradation->value(phasefield, lqph[q], ctl);
 
       const Tensor<2, dim> grad_u = old_displacement_grads[q];
       const Tensor<2, dim> E = 0.5 * (grad_u + transpose(grad_u));
@@ -284,7 +290,7 @@ public:
           strain_symm, stress_0, energy_positive, energy_negative,
           stress_positive, stress_negative, constitutive_law);
       Vector<double> stress_voigt(get_n_components());
-      Tensors::to_voigt<dim>(degradation * stress_positive + stress_negative,
+      Tensors::to_voigt<dim>(degrade * stress_positive + stress_negative,
                              stress_voigt);
       data[q] = stress_voigt;
     }
@@ -376,6 +382,9 @@ template <int dim> void Elasticity<dim>::compute_load(Controller<dim> &ctl) {
   const FEValuesExtractors::Vector displacement(0);
   ctl.debug_dcout << "Computing output - elasticity - load - computing"
                   << std::endl;
+  // Determine degradation
+  std::unique_ptr<Degradation<dim>> degradation =
+      select_degradation<dim>(ctl.params.degradation);
   for (const auto &cell : (this->dof_handler).active_cell_iterators())
     if (cell->is_locally_owned()) {
       for (const auto &face : cell->face_iterators())
@@ -387,10 +396,12 @@ template <int dim> void Elasticity<dim>::compute_load(Controller<dim> &ctl) {
           const std::vector<std::shared_ptr<PointHistory>> lqph =
               ctl.quadrature_point_history.get_data(cell);
           double phasefield = 0;
+          double degrade = 0;
           for (unsigned int q_point = 0; q_point < n_q_points; ++q_point) {
             phasefield += lqph[q_point]->get("Phase field", 0.0) / n_q_points;
+            degrade +=
+                degradation->value(phasefield, lqph[q_point], ctl) / n_q_points;
           }
-          double degradation = pow(1 - phasefield, 2) + ctl.params.constant_k;
 
           for (unsigned int q_point = 0; q_point < n_face_q_points; ++q_point) {
             const Tensor<2, dim> grad_u = face_solution_grads[q_point];
@@ -415,7 +426,7 @@ template <int dim> void Elasticity<dim>::compute_load(Controller<dim> &ctl) {
                 stress_positive, stress_negative, constitutive_law);
 
             load_value[face->boundary_id()] +=
-                degradation * stress_positive *
+                degrade * stress_positive *
                 fe_face_values.normal_vector(q_point) *
                 fe_face_values.JxW(q_point);
           }
@@ -433,7 +444,7 @@ template <int dim> void Elasticity<dim>::compute_load(Controller<dim> &ctl) {
       ctl.debug_dcout
           << "Computing output - elasticity - load - recording - dim - sum"
           << std::endl;
-      double load = Utilities::MPI::sum(it.second[i], ctl.mpi_com) * -1;
+      double load = Utilities::MPI::sum(it.second[i], ctl.mpi_com);
       ctl.debug_dcout
           << "Computing output - elasticity - load - recording - dim - record"
           << std::endl;

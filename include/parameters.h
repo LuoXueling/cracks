@@ -164,6 +164,7 @@ struct Material {
   double lame_coefficient_mu;
   double lame_coefficient_lambda;
   std::string plane_state;
+  std::string degradation;
 
   static void subsection_declare_parameters(ParameterHandler &prm);
 
@@ -179,6 +180,8 @@ void Material::subsection_declare_parameters(ParameterHandler &prm) {
     prm.declare_entry("Phase field length scale", "0.01", Patterns::Double(0));
     prm.declare_entry("Plane state", "stress",
                       Patterns::Selection("stress|strain"));
+    prm.declare_entry("Degradation", "quadratic",
+                      Patterns::Selection("quadratic|cubic"));
   }
   prm.leave_subsection();
 }
@@ -190,6 +193,7 @@ void Material::subsection_parse_parameters(ParameterHandler &prm) {
     v = prm.get_double("Poisson's ratio");
     Gc = prm.get_double("Critical energy release rate");
     l_phi = prm.get_double("Phase field length scale");
+    degradation = prm.get("Degradation");
   }
   prm.leave_subsection();
   lame_coefficient_mu = E / (2.0 * (1 + v));
