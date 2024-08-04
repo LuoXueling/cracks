@@ -12,52 +12,39 @@ using namespace dealii;
 template <int dim> class Degradation {
 public:
   Degradation() = default;
-  virtual double value(double phi, const std::shared_ptr<PointHistory> &lqph_q,
-                       Controller<dim> &ctl) {
+  virtual double value(double phi, Controller<dim> &ctl) {
     AssertThrow(false, ExcNotImplemented());
   };
-  virtual double derivative(double phi,
-                            const std::shared_ptr<PointHistory> &lqph_q,
-                            Controller<dim> &ctl) {
+  virtual double derivative(double phi, Controller<dim> &ctl) {
     AssertThrow(false, ExcNotImplemented());
   };
-  virtual double second_derivative(double phi,
-                                   const std::shared_ptr<PointHistory> &lqph_q,
-                                   Controller<dim> &ctl) {
+  virtual double second_derivative(double phi, Controller<dim> &ctl) {
     AssertThrow(false, ExcNotImplemented());
   };
 };
 
 template <int dim> class QuadraticDegradation : public Degradation<dim> {
 public:
-  double value(double phi, const std::shared_ptr<PointHistory> &lqph_q,
-               Controller<dim> &ctl) override {
+  double value(double phi, Controller<dim> &ctl) override {
     return pow(1 - phi, 2) + ctl.params.constant_k;
   };
-  double derivative(double phi, const std::shared_ptr<PointHistory> &lqph_q,
-                    Controller<dim> &ctl) override {
+  double derivative(double phi, Controller<dim> &ctl) override {
     return -2 * (1 - phi);
   };
-  double second_derivative(double phi,
-                           const std::shared_ptr<PointHistory> &lqph_q,
-                           Controller<dim> &ctl) override {
+  double second_derivative(double phi, Controller<dim> &ctl) override {
     return 2.0;
   };
 };
 
 template <int dim> class CubicDegradation : public Degradation<dim> {
 public:
-  double value(double phi, const std::shared_ptr<PointHistory> &lqph_q,
-               Controller<dim> &ctl) override {
+  double value(double phi, Controller<dim> &ctl) override {
     return pow(1 - phi, 3) + ctl.params.constant_k;
   };
-  double derivative(double phi, const std::shared_ptr<PointHistory> &lqph_q,
-                    Controller<dim> &ctl) override {
+  double derivative(double phi, Controller<dim> &ctl) override {
     return -3 * pow(1 - phi, 2);
   };
-  double second_derivative(double phi,
-                           const std::shared_ptr<PointHistory> &lqph_q,
-                           Controller<dim> &ctl) override {
+  double second_derivative(double phi, Controller<dim> &ctl) override {
     return 6 * (1 - phi);
   };
 };

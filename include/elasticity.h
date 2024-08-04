@@ -111,7 +111,7 @@ void Elasticity<dim>::assemble_newton_system(bool residual_only,
       for (unsigned int q = 0; q < n_q_points; ++q) {
         // Get history
         double phasefield = lqph[q]->get("Phase field", 0.0);
-        double degrade = degradation->value(phasefield, lqph[q], ctl);
+        double degrade = degradation->value(phasefield, ctl);
 
         // Values of fields and their derivatives
         for (unsigned int k = 0; k < dofs_per_cell; ++k) {
@@ -268,7 +268,7 @@ public:
         select_degradation<dim>(ctl.params.degradation);
     for (unsigned int q = 0; q < ctl.quadrature_formula.size(); ++q) {
       double phasefield = lqph[q]->get("Phase field", 0.0);
-      double degrade = degradation->value(phasefield, lqph[q], ctl);
+      double degrade = degradation->value(phasefield, ctl);
 
       const Tensor<2, dim> grad_u = old_displacement_grads[q];
       const Tensor<2, dim> E = 0.5 * (grad_u + transpose(grad_u));
@@ -396,12 +396,10 @@ template <int dim> void Elasticity<dim>::compute_load(Controller<dim> &ctl) {
           const std::vector<std::shared_ptr<PointHistory>> lqph =
               ctl.quadrature_point_history.get_data(cell);
           double phasefield = 0;
-          double degrade = 0;
           for (unsigned int q_point = 0; q_point < n_q_points; ++q_point) {
             phasefield += lqph[q_point]->get("Phase field", 0.0) / n_q_points;
-            degrade +=
-                degradation->value(phasefield, lqph[q_point], ctl) / n_q_points;
           }
+          double degrade = degradation->value(phasefield, ctl);
 
           for (unsigned int q_point = 0; q_point < n_face_q_points; ++q_point) {
             const Tensor<2, dim> grad_u = face_solution_grads[q_point];

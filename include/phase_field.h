@@ -177,7 +177,7 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
                          Bphi_kq[j] +
                      Nphi_kq[i] * Nphi_kq[j] *
                          (degradation->second_derivative(
-                              old_phasefield_values[q], lqph[q], ctl) *
+                              old_phasefield_values[q], ctl) *
                               H +
                           ctl.params.Gc / ctl.params.l_phi)) *
                     fe_values.JxW(q);
@@ -186,7 +186,7 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
           }
 
           cell_rhs(i) +=
-              (degradation->derivative(old_phasefield_values[q], lqph[q], ctl) *
+              (degradation->derivative(old_phasefield_values[q], ctl) *
                    Nphi_kq[i] * H +
                ctl.params.Gc *
                    (ctl.params.l_phi * old_phasefield_grads[q] * Bphi_kq[i] +
