@@ -22,12 +22,15 @@ public:
   Elasticity(unsigned int n_components, std::string boundary_from,
              std::string update_scheme, Controller<dim> &ctl);
 
-  void assemble_newton_system(bool residual_only,
+  void assemble_newton_system(bool residual_only, LA::MPI::Vector &neumann_rhs,
                               Controller<dim> &ctl) override;
   unsigned int solve(Controller<dim> &ctl) override;
   void output_results(DataOut<dim> &data_out, Controller<dim> &ctl) override;
 
   void compute_load(Controller<dim> &ctl);
+  unsigned int solve_system(LA::MPI::Vector &solution,
+                            LA::MPI::SparseMatrix &system_matrix,
+                            LA::MPI::Vector &system_rhs, Controller<dim> &ctl);
 
   ConstitutiveLaw<dim> constitutive_law;
 
@@ -41,13 +44,19 @@ Elasticity<dim>::Elasticity(const unsigned int n_components,
                             std::string update_scheme, Controller<dim> &ctl)
     : AbstractField<dim>(n_components, boundary_from, update_scheme, ctl),
       constitutive_law(ctl.params.E, ctl.params.v, ctl.params.plane_state),
-      stress(constitutive_law) {}
+      stress(constitutive_law) {
+  this->newton_ctl =
+      select_newton_variation<dim>(ctl.params.adjustment_method_elasticity);
+}
 
 template <int dim>
 void Elasticity<dim>::assemble_newton_system(bool residual_only,
+                                             LA::MPI::Vector &neumann_rhs,
                                              Controller<dim> &ctl) {
   (this->system_rhs) = 0;
-  (this->system_matrix) = 0;
+  if (!residual_only) {
+    (this->system_matrix) = 0;
+  }
 
   FEValues<dim> fe_values((this->fe), ctl.quadrature_formula,
                           update_values | update_gradients |
@@ -77,12 +86,14 @@ void Elasticity<dim>::assemble_newton_system(bool residual_only,
   zero_matrix.clear();
 
   // Integrate face load
-  LA::MPI::Vector neumann_rhs;
-  neumann_rhs = this->system_rhs;
-  neumann_rhs = 0;
-  for (unsigned int i = 0; i < (this->neumann_boundary_info).size(); ++i) {
-    this->setup_neumann_boundary_condition((this->neumann_boundary_info)[i],
-                                           neumann_rhs, ctl);
+  // If integrated (or modified by arc length control), skip the process.
+  if (neumann_rhs.all_zero()) {
+    neumann_rhs = this->system_rhs;
+    neumann_rhs = 0;
+    for (unsigned int i = 0; i < (this->neumann_boundary_info).size(); ++i) {
+      this->setup_neumann_boundary_condition((this->neumann_boundary_info)[i],
+                                             neumann_rhs, ctl);
+    }
   }
   this->system_rhs -= neumann_rhs;
 
@@ -210,14 +221,23 @@ void Elasticity<dim>::assemble_newton_system(bool residual_only,
 }
 
 template <int dim> unsigned int Elasticity<dim>::solve(Controller<dim> &ctl) {
+  return solve_system(this->system_solution, this->system_matrix,
+                      this->system_rhs, ctl);
+}
+
+template <int dim>
+unsigned int Elasticity<dim>::solve_system(LA::MPI::Vector &solution,
+                                           LA::MPI::SparseMatrix &system_matrix,
+                                           LA::MPI::Vector &system_rhs,
+                                           Controller<dim> &ctl) {
   if (ctl.params.direct_solver) {
     SolverControl solver_control;
     TrilinosWrappers::SolverDirect solver(solver_control);
-    solver.solve(this->system_matrix, this->system_solution, this->system_rhs);
-    return 1;
+    solver.solve(system_matrix, solution, system_rhs);
+    return solver_control.last_step();
   } else {
     SolverControl solver_control((this->dof_handler).n_dofs(),
-                                 1e-8 * (this->system_rhs).l2_norm());
+                                 1e-8 * system_rhs.l2_norm());
     ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear "
                        "system - preconditioner"
                     << std::endl;
@@ -229,20 +249,19 @@ template <int dim> unsigned int Elasticity<dim>::solve(Controller<dim> &ctl) {
       data.higher_order_elements = true;
       data.smoother_sweeps = 2;
       data.aggregation_threshold = 0.02;
-      (this->preconditioner).initialize((this->system_matrix), data);
+      (this->preconditioner).initialize(system_matrix, data);
     }
     ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear "
                        "system - solve"
                     << std::endl;
-    solver.solve((this->system_matrix), (this->system_solution),
-                 (this->system_rhs), (this->preconditioner));
+    solver.solve(system_matrix, solution, system_rhs, (this->preconditioner));
     ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear "
                        "system - solve complete"
                     << std::endl;
 
     return solver_control.last_step();
   }
-}
+};
 
 template <int dim> class StressProcessor : public CellProcessor<dim> {
 public:

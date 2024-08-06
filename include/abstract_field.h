@@ -8,6 +8,7 @@
 #include "boundary.h"
 #include "controller.h"
 #include "dealii_includes.h"
+#include "newton_variations.h"
 #include <typeinfo>
 
 template <int dim> class AbstractField {
@@ -16,6 +17,7 @@ public:
                 std::string update_scheme, Controller<dim> &ctl);
 
   virtual void assemble_newton_system(bool residual_only,
+                                      LA::MPI::Vector &neumann_rhs,
                                       Controller<dim> &ctl) {
     AssertThrow(false, ExcNotImplemented())
   };
@@ -86,6 +88,8 @@ public:
   LA::MPI::Vector system_rhs;
   //  LA::MPI::Vector diag_mass, diag_mass_relevant;
   LA::MPI::Vector system_solution;
+
+  std::unique_ptr<NewtonVariation<dim>> newton_ctl;
 };
 
 template <int dim>
@@ -99,6 +103,7 @@ AbstractField<dim>::AbstractField(const unsigned int n_components,
     component_masks.push_back(ComponentMask(n_components, false));
     component_masks[d].set(d, true);
   }
+  newton_ctl = select_newton_variation<dim>(ctl.params.adjustment_method);
   define_boundary_condition(boundary_from, ctl);
 }
 
@@ -342,15 +347,7 @@ double AbstractField<dim>::update_linear_system(Controller<dim> &ctl) {
 
 template <int dim>
 double AbstractField<dim>::update_newton_system(Controller<dim> &ctl) {
-  ctl.dcout << "It.\tResidual\tReduction\tLSrch\t\t#LinIts" << std::endl;
-
-  // Decision whether the system matrix should be build
-  // at each Newton step
-  const double nonlinear_rho = 0.1;
-
-  // Line search parameters
-  unsigned int line_search_step = 0;
-  double new_newton_residual = 0.0;
+  ctl.dcout << "It.\tResidual\tReduction\t#LinIts" << std::endl;
 
   // Cannot distribute constraints to parallel vectors with ghost dofs.
   LA::MPI::Vector distributed_solution(locally_owned_dofs, ctl.mpi_com);
@@ -366,110 +363,128 @@ double AbstractField<dim>::update_newton_system(Controller<dim> &ctl) {
   ctl.debug_dcout
       << "Solve Newton system - Newton iteration - first residual assemble"
       << std::endl;
-  assemble_newton_system(true, ctl);
+  LA::MPI::Vector neumann_rhs = system_rhs;
+  neumann_rhs = 0;
+  assemble_newton_system(true, neumann_rhs, ctl);
 
-  double newton_residual = system_rhs.linfty_norm();
-  double old_newton_residual = newton_residual * 1e8;
-  unsigned int newton_step = 1;
-  unsigned int no_linear_iterations = 0;
+  NewtonInformation<dim> newton_info;
+  newton_info.residual = system_rhs.linfty_norm();
+  newton_info.old_residual = newton_info.residual * 1e8;
+  newton_info.i_step = 1;
+  newton_info.iterative_solver_nonlinear_step = 0;
+  newton_info.adjustment_step = 0;
+  newton_info.new_residual = 0.0;
 
-  ctl.dcout << "0\t" << std::scientific << newton_residual << std::endl;
+  ctl.dcout << "0\t" << std::scientific << newton_info.residual << std::endl;
 
-  while (newton_residual > ctl.params.lower_bound_newton_residual &&
-         newton_step < ctl.params.max_no_newton_steps) {
-    old_newton_residual = newton_residual;
-    //    ctl.dcout << "Solve Newton system - Newton iteration - second residual
-    //    assemble" << std::endl; assemble_newton_system(true, ctl);
-    //    newton_residual = system_rhs.linfty_norm();
-
-    if (newton_residual < ctl.params.lower_bound_newton_residual) {
-      ctl.dcout << '\t' << std::scientific << newton_residual << std::endl;
+  while (newton_info.residual > ctl.params.lower_bound_newton_residual &&
+         newton_info.i_step < ctl.params.max_no_newton_steps) {
+    if (newton_ctl->quit_newton(newton_info, ctl)) {
+      ctl.dcout << '\t' << std::scientific << newton_info.residual << std::endl;
       break;
     }
 
-    if (newton_step == 1 ||
-        newton_residual / old_newton_residual > nonlinear_rho) {
+    if (newton_ctl->rebuild_jacobian(newton_info, ctl)) {
       ctl.debug_dcout
           << "Solve Newton system - Newton iteration - system assemble"
           << std::endl;
-      assemble_newton_system(false, ctl);
+      assemble_newton_system(false, neumann_rhs, ctl);
     }
 
     // Solve Ax = b
     ctl.debug_dcout
         << "Solve Newton system - Newton iteration - solve linear system"
         << std::endl;
-    no_linear_iterations = solve(ctl);
+    newton_info.iterative_solver_nonlinear_step = solve(ctl);
     ctl.debug_dcout
         << "Solve Newton system - Newton iteration - solve linear system exit"
         << std::endl;
-    line_search_step = 0;
+    newton_info.adjustment_step = 0;
     // Relaxation
-    for (; line_search_step < ctl.params.max_no_line_search_steps;
-         ++line_search_step) {
+    for (; newton_info.adjustment_step < ctl.params.max_adjustment_steps;) {
       ctl.debug_dcout
-          << "Solve Newton system - Newton iteration - start damping"
+          << "Solve Newton system - Newton iteration - dealing solution"
           << std::endl;
-      distributed_solution -= system_solution;
-      ctl.debug_dcout
-          << "Solve Newton system - Newton iteration - damping - distribute"
-          << std::endl;
+      newton_info.new_residual = system_rhs.linfty_norm();
+      newton_ctl->apply_increment(system_solution, distributed_solution,
+                                  this->system_matrix, this->system_rhs,
+                                  neumann_rhs, newton_info, ctl);
+      ctl.debug_dcout << "Solve Newton system - Newton iteration - distribute"
+                      << std::endl;
       distribute_all_constraints(distributed_solution, ctl);
       solution = distributed_solution;
-      ctl.debug_dcout << "Solve Newton system - Newton iteration - damping "
+      ctl.debug_dcout << "Solve Newton system - Newton iteration - "
                          "residual assemble"
                       << std::endl;
-      assemble_newton_system(true, ctl);
-      new_newton_residual = system_rhs.linfty_norm();
-
-      if (new_newton_residual < newton_residual)
-        break;
-      else if (ctl.params.line_search_damping >= 1) {
-        throw SolverControl::NoConvergence(0, 0);
+      if (newton_ctl->re_solve(newton_info, ctl)) {
+        if (newton_ctl->rebuild_jacobian(newton_info, ctl)) {
+          ctl.debug_dcout << "Solve Newton system - Newton iteration - resolve "
+                             "- system assemble"
+                          << std::endl;
+          assemble_newton_system(false, neumann_rhs, ctl);
+        }
+        ctl.debug_dcout << "Solve Newton system - Newton iteration - resolve "
+                           "with new jacobian"
+                        << std::endl;
+        newton_info.iterative_solver_nonlinear_step = solve(ctl);
       } else {
-        distributed_solution += system_solution;
+        ctl.debug_dcout << "Solve Newton system - Newton iteration - resolve "
+                           "with old jacobian"
+                        << std::endl;
+        assemble_newton_system(true, neumann_rhs, ctl);
+      }
+
+      newton_info.new_residual = system_rhs.linfty_norm();
+
+      if (newton_ctl->quit_adjustment(newton_info, ctl)) {
+        ctl.debug_dcout
+            << "Solve Newton system - Newton iteration - stop adjustment"
+            << std::endl;
+        break;
+      } else {
+        newton_info.adjustment_step += 1;
+        ctl.debug_dcout
+            << "Solve Newton system - Newton iteration - next adjustment"
+            << std::endl;
+        newton_ctl->prepare_next_adjustment(
+            system_solution, distributed_solution, this->system_matrix,
+            this->system_rhs, neumann_rhs, newton_info, ctl);
         distribute_all_constraints(distributed_solution, ctl);
         solution = distributed_solution;
-        system_solution *= ctl.params.line_search_damping;
       }
     }
-    old_newton_residual = newton_residual;
-    newton_residual = new_newton_residual;
+    newton_info.old_residual = newton_info.residual;
+    newton_info.residual = newton_info.new_residual;
 
-    ctl.dcout << std::setprecision(5) << newton_step << '\t' << std::scientific
-              << newton_residual;
+    ctl.dcout << std::setprecision(-1) << std::defaultfloat
+              << newton_info.i_step << '\t' << std::setprecision(5)
+              << std::scientific << newton_info.residual;
 
     ctl.dcout << '\t' << std::scientific
-              << newton_residual / old_newton_residual << '\t';
+              << newton_info.residual / newton_info.old_residual << '\t';
 
-    if (newton_step == 1 ||
-        newton_residual / old_newton_residual > nonlinear_rho)
-      ctl.dcout << "rebuild" << '\t';
-    else
-      ctl.dcout << " " << '\t';
-    ctl.dcout << line_search_step << '\t' << std::scientific
-              << no_linear_iterations << '\t' << std::scientific << std::endl;
+    ctl.dcout << newton_info.adjustment_step << '\t' << std::scientific
+              << newton_info.iterative_solver_nonlinear_step << '\t'
+              << std::scientific << std::endl;
 
     // Terminate if nothing is solved anymore. After this,
     // we cut the time step.
-    if ((newton_residual / old_newton_residual > ctl.params.upper_newton_rho) &&
-        (newton_step > 1)) {
+    if (newton_ctl->give_up(newton_info, ctl)) {
       break;
     }
 
     // Updates
-    newton_step++;
+    newton_info.i_step++;
   }
 
-  if ((newton_residual > ctl.params.lower_bound_newton_residual) &&
-      (newton_step == ctl.params.max_no_newton_steps)) {
-    ctl.dcout << "Newton iteration did not converge in " << newton_step
-              << " steps :-(" << std::endl;
+  if (!(newton_ctl->quit_newton(newton_info, ctl))) {
+    ctl.dcout << "Newton iteration did not converge in " << newton_info.i_step
+              << " steps. Go to adaptive time stepping" << std::endl;
     throw SolverControl::NoConvergence(0, 0);
   }
 
   solution = distributed_solution;
-  return newton_residual / old_newton_residual;
+  return newton_info.residual / newton_info.old_residual;
 }
 
 template <int dim>

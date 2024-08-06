@@ -72,7 +72,9 @@ struct Runtime {
   double lower_bound_newton_residual;
   unsigned int max_no_newton_steps;
   double upper_newton_rho;
-  unsigned int max_no_line_search_steps;
+  std::string adjustment_method;
+  std::string adjustment_method_elasticity;
+  unsigned int max_adjustment_steps;
   double line_search_damping;
   std::string phase_field_scheme;
   std::string decomposition;
@@ -105,7 +107,14 @@ void Runtime::subsection_declare_parameters(ParameterHandler &prm) {
 
     prm.declare_entry("Upper Newton rho", "0.999", Patterns::Double(0));
 
-    prm.declare_entry("Line search maximum steps", "5", Patterns::Integer(0));
+    prm.declare_entry("Adjustment method", "linesearch",
+                      Patterns::Selection("none|linesearch"));
+
+    prm.declare_entry("Adjustment method for elasticity", "linesearch",
+                      Patterns::Selection("none|linesearch|arclength"));
+
+    prm.declare_entry("Maximum number of adjustment steps of Newton solution",
+                      "5", Patterns::Integer(0));
 
     prm.declare_entry("Line search damping", "0.5", Patterns::Double(0));
 
@@ -143,8 +152,10 @@ void Runtime::subsection_parse_parameters(ParameterHandler &prm) {
     // only used for simple penalization
     upper_newton_rho = prm.get_double("Upper Newton rho");
 
-    // Line search control
-    max_no_line_search_steps = prm.get_integer("Line search maximum steps");
+    adjustment_method = prm.get("Adjustment method");
+    adjustment_method_elasticity = prm.get("Adjustment method for elasticity");
+    max_adjustment_steps = prm.get_integer(
+        "Maximum number of adjustment steps of Newton solution");
     line_search_damping = prm.get_double("Line search damping");
 
     phase_field_scheme = prm.get("Phase field update");
@@ -187,8 +198,9 @@ void Material::subsection_declare_parameters(ParameterHandler &prm) {
                       Patterns::Selection("stress|strain"));
     prm.declare_entry("Degradation", "quadratic",
                       Patterns::Selection("quadratic|cubic"));
-    prm.declare_entry("Fatigue degradation", "CarraraAsymptotic",
-                      Patterns::Selection("CarraraAsymptotic|KristensenAsymptotic"));
+    prm.declare_entry(
+        "Fatigue degradation", "CarraraAsymptotic",
+        Patterns::Selection("CarraraAsymptotic|KristensenAsymptotic"));
     prm.declare_entry(
         "Fatigue accumulation", "CarraraNoMeanEffect",
         Patterns::Selection("CarraraNoMeanEffect|CarraraMeanEffect"));

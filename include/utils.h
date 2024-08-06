@@ -201,6 +201,8 @@ double sine_wave(const double t, const double amplitude, const double mean,
   return amplitude * sin(2 * numbers::PI * frequency * t) + mean;
 }
 
+template <typename T> int sgn(T val) { return (T(0) < val) - (val < T(0)); }
+
 // https://stackoverflow.com/questions/13665090/trying-to-write-stdout-and-file-at-the-same-time
 struct teebuf : std::streambuf {
   std::streambuf *sb1_;
