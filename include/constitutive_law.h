@@ -42,9 +42,7 @@ ConstitutiveLaw<dim>::ConstitutiveLaw(double E_in, double nu_in,
     lambda = E * nu / (1 + nu) / (1 - 2 * nu);
     kappa = kappa_3d;
   } else if (dim == 2) {
-    lambda = E * nu / (1 + nu) /
-             (1 - 2 * nu); // This is actually wrong for 2D. But since everyone
-                           // is using this formula, I just keep it here.
+    lambda = E * nu / (1 + nu) / (1 - 2 * nu);
     if (plane_state == "stress") {
       kappa = 9 * kappa_3d * mu / (3 * kappa_3d + 4 * mu);
     } else {
@@ -54,8 +52,8 @@ ConstitutiveLaw<dim>::ConstitutiveLaw(double E_in, double nu_in,
   } else
     AssertThrow(false, ExcNotImplemented());
   stress_strain_tensor_kappa =
-      kappa * outer_product(unit_symmetric_tensor<dim>(),
-                            unit_symmetric_tensor<dim>());
+      kappa *
+      outer_product(unit_symmetric_tensor<dim>(), unit_symmetric_tensor<dim>());
   stress_strain_tensor_mu =
       2 * mu *
       (identity_tensor<dim>() - outer_product(unit_symmetric_tensor<dim>(),

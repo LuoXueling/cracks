@@ -72,22 +72,23 @@ public:
   }
 
   void pack_values(std::vector<double> &values) const override {
-    Assert(values.size() == finalize_scheme.size(), ExcInternalError());
+    Assert(values.size() == finalize_scheme.size() * 2, ExcInternalError());
     std::vector<std::string> names = get_names();
     for (unsigned int i = 0; i < finalize_scheme.size() * 2; ++i) {
-      values[i] = i < finalize_scheme.size() ? get(names[i], 0.0)
-                                             : get_increment(names[i], 0.0);
+      values[i] = i < finalize_scheme.size()
+                      ? get(names[i], 0.0)
+                      : get_increment(names[i - finalize_scheme.size()], 0.0);
     }
   }
 
   void unpack_values(const std::vector<double> &values) override {
-    Assert(values.size() == finalize_scheme.size(), ExcInternalError());
+    Assert(values.size() == finalize_scheme.size() * 2, ExcInternalError());
     std::vector<std::string> names = get_names();
     for (unsigned int i = 0; i < finalize_scheme.size() * 2; ++i) {
       if (i < finalize_scheme.size())
         solution_dict[names[i]] = values[i];
       else
-        solution_increment[names[i]] = values[i];
+        solution_increment[names[i - finalize_scheme.size()]] = values[i];
     }
   }
 
