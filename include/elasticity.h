@@ -187,6 +187,7 @@ void Elasticity<dim>::assemble_newton_system(bool residual_only,
 
         // Update history
         lqph[q]->update("Driving force", energy_positive, "max");
+        lqph[q]->update("Positive elastic energy", energy_positive);
       }
 
       cell->get_dof_indices(local_dof_indices);

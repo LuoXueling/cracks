@@ -9,6 +9,7 @@
 #include "constitutive_law.h"
 #include "dealii_includes.h"
 #include "degradation.h"
+#include "fatigue_degradation.h"
 #include "parameters.h"
 #include "post_processors.h"
 #include "utils.h"
@@ -62,6 +63,11 @@ void PhaseField<dim>::assemble_linear_system(Controller<dim> &ctl) {
     AssertThrow(false,
                 ExcInternalError("Cannot solve linear equations for phase "
                                  "field when degradation is not quadratic."))
+  }
+  if (ctl.params.enable_fatigue) {
+    AssertThrow(false,
+                ExcInternalError("Cannot solve linear equations for phase "
+                                 "field when fatigue is activated."))
   }
 
   for (const auto &cell : (this->dof_handler).active_cell_iterators())
@@ -145,6 +151,10 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
 
   std::unique_ptr<Degradation<dim>> degradation =
       select_degradation<dim>(ctl.params.degradation);
+  std::unique_ptr<FatigueDegradation<dim>> fatigue_degradation =
+      select_fatigue_degradation<dim>(ctl.params.fatigue_degradation, ctl);
+  std::unique_ptr<FatigueAccumulation<dim>> fatigue_accumulation =
+      select_fatigue_accumulation<dim>(ctl.params.fatigue_accumulation, ctl);
 
   for (const auto &cell : (this->dof_handler).active_cell_iterators())
     if (cell->is_locally_owned()) {
@@ -155,17 +165,36 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
 
       fe_values.get_function_values((this->solution), old_phasefield_values);
       fe_values.get_function_gradients((this->solution), old_phasefield_grads);
-
       // Get history
       const std::vector<std::shared_ptr<PointHistory>> lqph =
           ctl.quadrature_point_history.get_data(cell);
-      for (unsigned int q = 0; q < n_q_points; ++q) {
-        double H = lqph[q]->get("Driving force", 0.0);
 
+
+      for (unsigned int q = 0; q < n_q_points; ++q) {
         // Values of fields and their derivatives
         for (unsigned int k = 0; k < dofs_per_cell; ++k) {
           Nphi_kq[k] = fe_values.shape_value(k, q);
           Bphi_kq[k] = fe_values.shape_grad(k, q);
+        }
+
+        double H = lqph[q]->get("Driving force", 0.0);
+        double degrade = degradation->value(old_phasefield_values[q], ctl);
+        double degrade_derivative =
+            degradation->derivative(old_phasefield_values[q], ctl);
+        double degrade_second_derivative =
+            degradation->second_derivative(old_phasefield_values[q], ctl);
+
+        double fatigue_degrade, fatigue_degrade_derivative;
+        Tensor<1, dim> fatigue_degrade_grad;
+        if (ctl.params.enable_fatigue) {
+          fatigue_accumulation->step(lqph[q], old_phasefield_values[q], degrade,
+                                     degrade_derivative,
+                                     degrade_second_derivative, ctl);
+          fatigue_degrade = fatigue_degradation->degradation_value(
+              lqph[q], old_phasefield_values[q], degrade, ctl);
+        } else {
+          fatigue_degrade = 1.0;
+          fatigue_degrade_derivative = 0.0;
         }
 
         for (unsigned int i = 0; i < dofs_per_cell; ++i) {
@@ -173,25 +202,22 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
             for (unsigned int j = 0; j < dofs_per_cell; ++j) {
               {
                 cell_matrix(i, j) +=
-                    (ctl.params.Gc * ctl.params.l_phi * Bphi_kq[i] *
-                         Bphi_kq[j] +
+                    (ctl.params.Gc * fatigue_degrade * ctl.params.l_phi *
+                         Bphi_kq[i] * Bphi_kq[j] +
                      Nphi_kq[i] * Nphi_kq[j] *
-                         (degradation->second_derivative(
-                              old_phasefield_values[q], ctl) *
-                              H +
-                          ctl.params.Gc / ctl.params.l_phi)) *
+                         (degrade_second_derivative * H +
+                          ctl.params.Gc * fatigue_degrade / ctl.params.l_phi)) *
                     fe_values.JxW(q);
               }
             }
           }
 
           cell_rhs(i) +=
-              (degradation->derivative(old_phasefield_values[q], ctl) *
-                   Nphi_kq[i] * H +
-               ctl.params.Gc *
-                   (ctl.params.l_phi * old_phasefield_grads[q] * Bphi_kq[i] +
-                    1 / ctl.params.l_phi * old_phasefield_values[q] *
-                        Nphi_kq[i])) *
+              (degrade_derivative * H * Nphi_kq[i] +
+               ctl.params.Gc * (fatigue_degrade * ctl.params.l_phi *
+                                    old_phasefield_grads[q] * Bphi_kq[i] +
+                                fatigue_degrade / ctl.params.l_phi *
+                                    old_phasefield_values[q] * Nphi_kq[i])) *
               fe_values.JxW(q);
 
           lqph[q]->update("Phase field", old_phasefield_values[q]);
@@ -261,6 +287,12 @@ void PhaseField<dim>::output_results(DataOut<dim> &data_out,
   PointHistoryProcessor<dim> hist_processor("Driving force", this->fe, ctl);
   hist_processor.add_data_scalar(this->solution, data_out, this->dof_handler,
                                  ctl);
+  if (ctl.params.enable_fatigue) {
+    PointHistoryProcessor<dim> fatigue_processor("Fatigue history", this->fe,
+                                                 ctl);
+    fatigue_processor.add_data_scalar(this->solution, data_out,
+                                      this->dof_handler, ctl);
+  }
 }
 
 template <int dim>

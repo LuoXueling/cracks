@@ -17,6 +17,7 @@ struct Project {
   std::string output_dir_top;
   std::string load_sequence_from;
   bool enable_phase_field;
+  bool enable_fatigue;
   bool debug_output;
 
   static void subsection_declare_parameters(ParameterHandler &prm);
@@ -38,6 +39,7 @@ void Project::subsection_declare_parameters(ParameterHandler &prm) {
     prm.declare_entry("Load sequence from", "script",
                       Patterns::FileName(Patterns::FileName::FileType::input));
     prm.declare_entry("Enable phase field", "true", Patterns::Bool());
+    prm.declare_entry("Enable fatigue", "false", Patterns::Bool());
 
     prm.declare_entry("Debug output", "false", Patterns::Bool());
   }
@@ -53,6 +55,7 @@ void Project::subsection_parse_parameters(ParameterHandler &prm) {
     output_dir_top = prm.get("Output directory");
     load_sequence_from = prm.get("Load sequence from");
     enable_phase_field = prm.get_bool("Enable phase field");
+    enable_fatigue = prm.get_bool("Enable fatigue");
     debug_output = prm.get_bool("Debug output");
   }
   prm.leave_subsection();
@@ -165,6 +168,8 @@ struct Material {
   double lame_coefficient_lambda;
   std::string plane_state;
   std::string degradation;
+  std::string fatigue_degradation;
+  std::string fatigue_accumulation;
 
   static void subsection_declare_parameters(ParameterHandler &prm);
 
@@ -182,6 +187,11 @@ void Material::subsection_declare_parameters(ParameterHandler &prm) {
                       Patterns::Selection("stress|strain"));
     prm.declare_entry("Degradation", "quadratic",
                       Patterns::Selection("quadratic|cubic"));
+    prm.declare_entry("Fatigue degradation", "CarraraAsymptotic",
+                      Patterns::Selection("CarraraAsymptotic|KristensenAsymptotic"));
+    prm.declare_entry(
+        "Fatigue accumulation", "CarraraNoMeanEffect",
+        Patterns::Selection("CarraraNoMeanEffect|CarraraMeanEffect"));
   }
   prm.leave_subsection();
 }
@@ -194,6 +204,8 @@ void Material::subsection_parse_parameters(ParameterHandler &prm) {
     Gc = prm.get_double("Critical energy release rate");
     l_phi = prm.get_double("Phase field length scale");
     degradation = prm.get("Degradation");
+    fatigue_degradation = prm.get("Fatigue degradation");
+    fatigue_accumulation = prm.get("Fatigue accumulation");
   }
   prm.leave_subsection();
   lame_coefficient_mu = E / (2.0 * (1 + v));
