@@ -215,6 +215,7 @@ void Material::subsection_parse_parameters(ParameterHandler &prm) {
     v = prm.get_double("Poisson's ratio");
     Gc = prm.get_double("Critical energy release rate");
     l_phi = prm.get_double("Phase field length scale");
+    plane_state = prm.get("Plane state");
     degradation = prm.get("Degradation");
     fatigue_degradation = prm.get("Fatigue degradation");
     fatigue_accumulation = prm.get("Fatigue accumulation");

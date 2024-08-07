@@ -38,15 +38,17 @@ ConstitutiveLaw<dim>::ConstitutiveLaw(double E_in, double nu_in,
                                       std::string plane_state_in)
     : E(E_in), nu(nu_in), plane_state(plane_state_in), mu(E / (2 * (1 + nu))) {
   double kappa_3d = E / (3 * (1 - 2 * nu));
+  lambda = E * nu / (1 + nu) / (1 - 2 * nu);
   if (dim == 3) {
-    lambda = E * nu / (1 + nu) / (1 - 2 * nu);
     kappa = kappa_3d;
   } else if (dim == 2) {
-    lambda = E * nu / (1 + nu) / (1 - 2 * nu);
     if (plane_state == "stress") {
-      kappa = 9 * kappa_3d * mu / (3 * kappa_3d + 4 * mu);
+      // https://comet-fenics.readthedocs.io/en/latest/demo/elasticity/2D_elasticity.py.html
+      lambda = 2 * lambda * mu / (lambda + 2 * mu);
+      kappa = 9 * kappa_3d * mu /
+              (3 * kappa_3d + 4 * mu); // kappa = E / (2 * (1 - nu))
     } else {
-      kappa = kappa_3d + mu / 3; // kappa = E / (2 * (1 - nu))
+      kappa = kappa_3d + mu / 3;
     }
     //    kappa = E / (2 * (1 - nu));
   } else
