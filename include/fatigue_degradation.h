@@ -76,6 +76,21 @@ public:
 };
 
 template <int dim>
+class KristensenAccumulation : public FatigueAccumulation<dim> {
+public:
+  KristensenAccumulation(Controller<dim> &ctl)
+      : FatigueAccumulation<dim>(ctl){};
+  double increment(const std::shared_ptr<PointHistory> &lqph, double phasefield,
+                   double degrade, double degrade_derivative,
+                   double degrade_second_derivative,
+                   Controller<dim> &ctl) override {
+    double dpsi = lqph->get_increment("Positive elastic energy", 0.0);
+    double increm = (dpsi > 0 ? 1.0 : 0.0) * dpsi;
+    return increm;
+  };
+};
+
+template <int dim>
 class CarraraMeanEffectAccumulation : public FatigueAccumulation<dim> {
 public:
   CarraraMeanEffectAccumulation(Controller<dim> &ctl)
@@ -129,6 +144,8 @@ select_fatigue_accumulation(std::string method, Controller<dim> &ctl) {
     return std::make_unique<CarraraNoMeanEffectAccumulation<dim>>(ctl);
   else if (method == "CarraraMeanEffect")
     return std::make_unique<CarraraMeanEffectAccumulation<dim>>(ctl);
+  else if (method == "Kristensen")
+    return std::make_unique<KristensenAccumulation<dim>>(ctl);
   else
     AssertThrow(false, ExcNotImplemented());
 }

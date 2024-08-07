@@ -203,7 +203,7 @@ void Material::subsection_declare_parameters(ParameterHandler &prm) {
         Patterns::Selection("CarraraAsymptotic|KristensenAsymptotic"));
     prm.declare_entry(
         "Fatigue accumulation", "CarraraNoMeanEffect",
-        Patterns::Selection("CarraraNoMeanEffect|CarraraMeanEffect"));
+        Patterns::Selection("CarraraNoMeanEffect|CarraraMeanEffect|Kristensen"));
   }
   prm.leave_subsection();
 }
