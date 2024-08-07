@@ -103,6 +103,70 @@ public:
     stress_negative = 0;
   }
 };
+
+template <int dim>
+class HybridNoTensionDecomposition : public HybridEigenDecomposition<dim> {
+public:
+  void
+  decompose_stress_and_energy(const SymmetricTensor<2, dim> &strain,
+                              const SymmetricTensor<2, dim> &stress_0,
+                              double &energy_positive, double &energy_negative,
+                              SymmetricTensor<2, dim> &stress_positive,
+                              SymmetricTensor<2, dim> &stress_negative,
+                              ConstitutiveLaw<dim> &constitutive_law) override {
+    double trE = trace(strain);
+    double trE_pos = 0.5 * (trE + std::abs(trE));
+    double trE_neg = 0.5 * (trE - std::abs(trE));
+    double e1, e2, e3;
+    std::array<double, dim> res = eigenvalues(strain);
+    std::vector<double> v(res.begin(), res.end());
+    if (dim == 2) {
+      v.push_back(0);
+    }
+    std::sort(std::begin(v), std::end(v)); // ascending order
+
+    e1 = v[2];
+    e2 = v[1];
+    e3 = v[0];
+
+    double lambda = constitutive_law.lambda;
+    double mu = constitutive_law.mu;
+    double nu = constitutive_law.nu;
+    double E = constitutive_law.E;
+    if (e3 > 0) {
+      energy_positive =
+          0.5 * lambda * std::pow(e1 + e2 + e3, 2) +
+          mu * (std::pow(e1, 2) + std::pow(e2, 2) + std::pow(e3, 2));
+      energy_negative = 0;
+    } else if ((e2 + nu * e3) > 0) {
+      energy_positive =
+          0.5 * lambda * std::pow(e1 + e2 + 2 * nu * e3, 2) +
+          mu * (std::pow(e1 + nu * e3, 2) + std::pow(e2 + nu * e3, 2));
+      energy_negative = 0.5 * E * std::pow(e3, 2);
+    } else if (((1 - nu) * e1 + nu * (e2 + e3)) > 0) {
+      energy_positive = 0.5 * lambda * (1 + nu) / (nu * (1 - nu * nu)) *
+                        std::pow((1 - nu) * e1 + nu * e2 + nu * e3, 2);
+      energy_negative = 0.5 * E / (1 - std::pow(nu, 2)) *
+                        (std::pow(e2, 2) + std::pow(e3, 2) + 2 * nu * e2 * e3);
+    } else {
+      energy_positive = 0;
+      energy_negative =
+          0.5 * lambda * std::pow(e1 + e2 + e3, 2) +
+          mu * (std::pow(e1, 2) + std::pow(e2, 2) + std::pow(e3, 2));
+    }
+
+    double original_energy = 0.5 * scalar_product(stress_0, strain);
+    AssertThrow(
+        original_energy < 1e-10 ||
+            (std::abs(original_energy - (energy_positive + energy_negative)) /
+             (original_energy + 1e-10)) < 1e-10,
+        ExcInternalError("Wrong energy decomposition"));
+
+    stress_positive = stress_0;
+    stress_negative = 0;
+  }
+};
+
 template <int dim> class SphericalDecomposition : public Decomposition<dim> {
 public:
   void decompose_elasticity_tensor_stress_and_energy(
@@ -198,6 +262,8 @@ std::unique_ptr<Decomposition<dim>> select_decomposition(std::string method) {
     return std::make_unique<SphericalDecomposition<dim>>();
   else if (method == "hybrid")
     return std::make_unique<HybridEigenDecomposition<dim>>();
+  else if (method == "hybridnotension")
+    return std::make_unique<HybridNoTensionDecomposition<dim>>();
   else
     AssertThrow(false, ExcNotImplemented());
 }

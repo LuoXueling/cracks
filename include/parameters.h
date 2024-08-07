@@ -122,7 +122,7 @@ void Runtime::subsection_declare_parameters(ParameterHandler &prm) {
                       Patterns::Selection("newton|linear"));
 
     prm.declare_entry("Decomposition", "hybrid",
-                      Patterns::Selection("none|hybrid|sphere|eigen"));
+                      Patterns::Selection("none|hybrid|sphere|eigen|hybridnotension"));
 
     prm.declare_entry("Constant small quantity k", "1.0e-6",
                       Patterns::Double(0));
