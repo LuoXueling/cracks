@@ -52,12 +52,16 @@ public:
         res = it->second;
       } else if (scheme == "max") {
         res = std::max(it->second, get(it->first, -1.0e10));
+        solution_dict_temp[it->first] = -1.0e10;
       } else if (scheme == "min") {
         res = std::min(it->second, get(it->first, 1.0e10));
+        solution_dict_temp[it->first] = 1.0e10;
       } else if (scheme == "accumulate") {
         res = it->second + get(it->first, 0.0);
+        solution_dict_temp[it->first] = 0.0;
       } else if (scheme == "multiplicative") {
         res = it->second * get(it->first, 1.0);
+        solution_dict_temp[it->first] = 1.0;
       } else {
         AssertThrow(false, ExcNotImplemented(
                                "Point history update scheme is illegal."));
