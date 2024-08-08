@@ -136,6 +136,16 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
                           update_values | update_gradients |
                               update_quadrature_points | update_JxW_values);
 
+  //  // Fatigue history is only availabel at gaussian points, we have to
+  //  project
+  //  // them to nodes, and then we can calculate gradients using shape_grad
+  //  // https://www.dealii.org/current/doxygen/deal.II/step_18.html
+  //  FullMatrix<double> qpoint_to_dof_matrix((this->fe).dofs_per_cell,
+  //                                          ctl.quadrature_formula.size());
+  //  FETools::compute_projection_from_quadrature_points_matrix(
+  //      this->fe, ctl.quadrature_formula, ctl.quadrature_formula,
+  //      qpoint_to_dof_matrix);
+
   const unsigned int dofs_per_cell = (this->fe).n_dofs_per_cell();
   const unsigned int n_q_points = ctl.quadrature_formula.size();
 
@@ -172,6 +182,13 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
       const std::vector<std::shared_ptr<PointHistory>> lqph =
           ctl.quadrature_point_history.get_data(cell);
 
+      //      Vector<double> local_history_nodal_values,
+      //          local_history_derivative_nodal_values;
+      //      if (ctl.params.enable_fatigue) {
+      //        this->project_from_pointhistory_to_nodes(
+      //            "Fatigue history", local_history_nodal_values, lqph,
+      //            qpoint_to_dof_matrix, ctl);
+      //      }
 
       for (unsigned int q = 0; q < n_q_points; ++q) {
         // Values of fields and their derivatives
@@ -195,6 +212,14 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
                                      degrade_second_derivative, ctl);
           fatigue_degrade = fatigue_degradation->degradation_value(
               lqph[q], old_phasefield_values[q], degrade, ctl);
+          //          fatigue_degrade_derivative =
+          //              fatigue_degradation->degradation_derivative(
+          //                  lqph[q], old_phasefield_values[q], degrade, ctl) *
+          //              lqph[q]->get("Fatigue history phase field derivative",
+          //              0.0);
+          //          this->point_history_gradient(fatigue_degrade_grad,
+          //                                       local_history_nodal_values,
+          //                                       Bphi_kq);
         } else {
           fatigue_degrade = 1.0;
           fatigue_degrade_derivative = 0.0;
@@ -211,6 +236,23 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
                          (degrade_second_derivative * H +
                           ctl.params.Gc * fatigue_degrade / ctl.params.l_phi)) *
                     fe_values.JxW(q);
+                //                if (ctl.params.enable_fatigue) {
+                //                  Tensor<0, dim> first_term =
+                //                  fatigue_degrade_grad * Bphi_kq[j]; Tensor<0,
+                //                  dim> second_term = Bphi_kq[j] *
+                //                                               fatigue_degrade_derivative
+                //                                               *
+                //                                               old_phasefield_grads[q];
+                //                  cell_matrix(i, j) +=
+                //                      -ctl.params.Gc * ctl.params.l_phi *
+                //                      Nphi_kq[i] * (fatigue_degrade_grad *
+                //                      Bphi_kq[j])
+                ////                       +
+                ////                       Bphi_kq[j] *
+                ///fatigue_degrade_derivative * / old_phasefield_grads[q])
+                //                      *
+                //                      fe_values.JxW(q);
+                //                }
               }
             }
           }
@@ -222,6 +264,13 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
                                 fatigue_degrade / ctl.params.l_phi *
                                     old_phasefield_values[q] * Nphi_kq[i])) *
               fe_values.JxW(q);
+          //          if (ctl.params.enable_fatigue) {
+          //            cell_rhs(i) += -ctl.params.Gc *
+          //                           (fatigue_degrade_grad * ctl.params.l_phi
+          //                           *
+          //                            old_phasefield_grads[q] * Nphi_kq[i]) *
+          //                           fe_values.JxW(q);
+          //          }
 
           lqph[q]->update("Phase field", old_phasefield_values[q]);
         }

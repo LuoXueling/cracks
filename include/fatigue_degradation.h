@@ -17,7 +17,14 @@ public:
             double degrade_second_derivative, Controller<dim> &ctl) {
     double increm = increment(lqph_q, phasefield, degrade, degrade_derivative,
                               degrade_second_derivative, ctl);
+    //    double increm_derivative =
+    //        increment_derivative(lqph_q, phasefield, degrade,
+    //        degrade_derivative,
+    //                  degrade_second_derivative, ctl);
     lqph_q->update("Fatigue history", increm, "accumulate");
+    //    lqph_q->update("Fatigue history phase field derivative",
+    //    increm_derivative,
+    //                   "accumulate");
   }
 
   virtual double increment(const std::shared_ptr<PointHistory> &lqph,
@@ -28,13 +35,14 @@ public:
     AssertThrow(false, ExcNotImplemented());
   };
 
-  virtual double increment_derivative(const std::shared_ptr<PointHistory> &lqph,
-                                      double phasefield, double degrade,
-                                      double degrade_derivative,
-                                      double degrade_second_derivative,
-                                      Controller<dim> &ctl) {
-    AssertThrow(false, ExcNotImplemented());
-  };
+  //  virtual double increment_derivative(const std::shared_ptr<PointHistory>
+  //  &lqph,
+  //                                      double phasefield, double degrade,
+  //                                      double degrade_derivative,
+  //                                      double degrade_second_derivative,
+  //                                      Controller<dim> &ctl) {
+  //    AssertThrow(false, ExcNotImplemented());
+  //  };
 };
 
 template <int dim>
@@ -51,23 +59,23 @@ public:
     double increm = (dpsi > 0 ? 1.0 : 0.0) * dpsi;
     return increm;
   };
-
-  double increment_derivative(const std::shared_ptr<PointHistory> &lqph,
-                              double phasefield, double degrade,
-                              double degrade_derivative,
-                              double degrade_second_derivative,
-                              Controller<dim> &ctl) override {
-    double psi_undegraded = lqph->get("Positive elastic energy", 0.0);
-    double dpsi_undegraded =
-        lqph->get_increment("Positive elastic energy", 0.0);
-    double dpsi = dpsi_undegraded * degrade;
-    double dphasefield = lqph->get_increment("Phase field", 0.0);
-    double increm_derivative =
-        (dpsi > 0 ? 1.0 : 0.0) *
-        (degrade_second_derivative * dphasefield * psi_undegraded +
-         degrade_derivative * dpsi_undegraded);
-    return increm_derivative;
-  };
+  //
+  //  double increment_derivative(const std::shared_ptr<PointHistory> &lqph,
+  //                              double phasefield, double degrade,
+  //                              double degrade_derivative,
+  //                              double degrade_second_derivative,
+  //                              Controller<dim> &ctl) override {
+  //    double psi_undegraded = lqph->get("Positive elastic energy", 0.0);
+  //    double dpsi_undegraded =
+  //        lqph->get_increment("Positive elastic energy", 0.0);
+  //    double dpsi = dpsi_undegraded * degrade;
+  //    double dphasefield = lqph->get_increment("Phase field", 0.0);
+  //    double increm_derivative =
+  //        (dpsi > 0 ? 1.0 : 0.0) *
+  //        (degrade_second_derivative * dphasefield * psi_undegraded +
+  //         degrade_derivative * dpsi_undegraded);
+  //    return increm_derivative;
+  //  };
 };
 
 template <int dim>
@@ -107,26 +115,26 @@ public:
     return increm;
   };
 
-  double increment_derivative(const std::shared_ptr<PointHistory> &lqph,
-                              double phasefield, double degrade,
-                              double degrade_derivative,
-                              double degrade_second_derivative,
-                              Controller<dim> &ctl) override {
-    double psi_undegraded = lqph->get("Positive elastic energy", 0.0);
-    double psi = psi_undegraded * degrade;
-    double dpsi_undegraded =
-        lqph->get_increment("Positive elastic energy", 0.0);
-    double dpsi = dpsi_undegraded * degrade;
-    double dphasefield = lqph->get_increment("Phase field", 0.0);
-    double increm_derivative =
-        (dpsi > 0 ? 1.0 : 0.0) *
-        ((degrade_second_derivative * dphasefield * psi_undegraded +
-          degrade_derivative * dpsi_undegraded) *
-             psi +
-         dpsi * degrade_derivative * psi_undegraded) /
-        alpha_n;
-    return increm_derivative;
-  };
+  //  double increment_derivative(const std::shared_ptr<PointHistory> &lqph,
+  //                              double phasefield, double degrade,
+  //                              double degrade_derivative,
+  //                              double degrade_second_derivative,
+  //                              Controller<dim> &ctl) override {
+  //    double psi_undegraded = lqph->get("Positive elastic energy", 0.0);
+  //    double psi = psi_undegraded * degrade;
+  //    double dpsi_undegraded =
+  //        lqph->get_increment("Positive elastic energy", 0.0);
+  //    double dpsi = dpsi_undegraded * degrade;
+  //    double dphasefield = lqph->get_increment("Phase field", 0.0);
+  //    double increm_derivative =
+  //        (dpsi > 0 ? 1.0 : 0.0) *
+  //        ((degrade_second_derivative * dphasefield * psi_undegraded +
+  //          degrade_derivative * dpsi_undegraded) *
+  //             psi +
+  //         dpsi * degrade_derivative * psi_undegraded) /
+  //        alpha_n;
+  //    return increm_derivative;
+  //  };
 
 private:
   double alpha_n;
@@ -153,12 +161,12 @@ public:
                                    Controller<dim> &ctl) {
     AssertThrow(false, ExcNotImplemented());
   };
-  virtual double
-  degradation_derivative(const std::shared_ptr<PointHistory> &lqph,
-                         double phasefield, double degrade,
-                         Controller<dim> &ctl) {
-    AssertThrow(false, ExcNotImplemented());
-  };
+  //  virtual double
+  //  degradation_derivative(const std::shared_ptr<PointHistory> &lqph,
+  //                         double phasefield, double degrade,
+  //                         Controller<dim> &ctl) {
+  //    AssertThrow(false, ExcNotImplemented());
+  //  };
 };
 
 // https://www.sciencedirect.com/science/article/pii/S0045782519306218
@@ -186,20 +194,21 @@ public:
     }
     return degrade;
   };
-  double degradation_derivative(const std::shared_ptr<PointHistory> &lqph,
-                                double phasefield, double phasefield_degrade,
-                                Controller<dim> &ctl) override {
-
-    double degrade_derivative;
-    double alpha = lqph->get("Fatigue history", 0.0);
-    if (alpha <= alpha_t) {
-      degrade_derivative = 0;
-    } else {
-      degrade_derivative = 2 * 2 * alpha_t / (alpha + alpha_t) *
-                           (-2 * alpha_t / std::pow(alpha + alpha_t, 2));
-    }
-    return degrade_derivative;
-  };
+  //  double degradation_derivative(const std::shared_ptr<PointHistory> &lqph,
+  //                                double phasefield, double
+  //                                phasefield_degrade, Controller<dim> &ctl)
+  //                                override {
+  //
+  //    double degrade_derivative;
+  //    double alpha = lqph->get("Fatigue history", 0.0);
+  //    if (alpha <= alpha_t) {
+  //      degrade_derivative = 0;
+  //    } else {
+  //      degrade_derivative = 2 * 2 * alpha_t / (alpha + alpha_t) *
+  //                           (-2 * alpha_t / std::pow(alpha + alpha_t, 2));
+  //    }
+  //    return degrade_derivative;
+  //  };
 
   double alpha_t;
 };
