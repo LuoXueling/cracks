@@ -1,10 +1,11 @@
 subsection Project
-  set Project name = singleNotchShear3D
-  set Mesh from = ../meshes/singleNotchShear3DCoarse.inp
-  set Boundary from = ../meshes/singleNotchShear3D_boundary.txt
+  set Project name = CarraraCTTension
+  set Mesh from = ../meshes/CT05.inp
+  set Boundary from = ../meshes/CarraraCTTension_boundary.txt
   set Output directory = ../output/
   set Load sequence from = script
   set Enable phase field = true
+  set Enable fatigue = false
 
   # Debug
   set Debug output = false
@@ -12,10 +13,10 @@ end
 
 subsection Runtime
   # Time step
-  set Max No of timesteps = 1500
-  set Timestep size = 1.0e-5
-  set Timestep size to switch to = 1.0e-6
-  set Switch timestep after steps = 500000
+  set Max No of timesteps = 2000
+  set Timestep size = 0.001
+  set Timestep size to switch to = 0.001
+  set Switch timestep after steps = 0
 
   # Solver
   set Use Direct Inner Solver = false
@@ -41,16 +42,18 @@ subsection Runtime
 end
 
 subsection Material
-    set Young's modulus = 210000
-    set Poisson's ratio = 0.3
-    set Critical energy release rate = 2.7
-    set Phase field length scale = 0.015
-    set Plane state = strain
+    set Young's modulus = 6000
+    set Poisson's ratio = 0.22
+    set Critical energy release rate = 2.28
+    set Phase field length scale = 0.2
+    set Plane state = stress
+    set Fatigue degradation = CarraraAsymptotic
+    set Fatigue accumulation = CarraraNoMeanEffect
 end
 
 subsection Finite element system
   # Physical dimension
-  set Physical dimension = 3
+  set Physical dimension = 2
 
   # Displacement system polynomial order
   set Polynomial degree = 1

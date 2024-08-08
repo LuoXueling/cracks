@@ -1,10 +1,11 @@
 subsection Project
-  set Project name = singleNotchShear3D
-  set Mesh from = ../meshes/singleNotchShear3DCoarse.inp
-  set Boundary from = ../meshes/singleNotchShear3D_boundary.txt
+  set Project name = singleNotchTensionFatigueKristensen
+  set Mesh from = ../meshes/singleNotchCoarse.inp
+  set Boundary from = ../meshes/singleNotchTensionCyclicKristensen_boundary.txt
   set Output directory = ../output/
   set Load sequence from = script
   set Enable phase field = true
+  set Enable fatigue = true
 
   # Debug
   set Debug output = false
@@ -12,10 +13,10 @@ end
 
 subsection Runtime
   # Time step
-  set Max No of timesteps = 1500
-  set Timestep size = 1.0e-5
-  set Timestep size to switch to = 1.0e-6
-  set Switch timestep after steps = 500000
+  set Max No of timesteps = 300000
+  set Timestep size = 0.25
+  set Timestep size to switch to = 0.5
+  set Switch timestep after steps = 0
 
   # Solver
   set Use Direct Inner Solver = false
@@ -24,7 +25,7 @@ subsection Runtime
   set Upper Newton rho = 0.999
   set Maximum number of adjustment steps of Newton solution = 10
   set Line search damping = 0.5
-  set Save vtk per step = 10
+  set Save vtk per step = 100
 
   # Phase field scheme
   # "linear" to solve K_phi * phi = r_phi
@@ -34,7 +35,7 @@ subsection Runtime
   # "eigen" for eigen decomposition (http://dx.doi.org/10.1016/j.commatsci.2016.04.009)
   # "hybrid" for hybrid decomposition with eigen decomposition acting on residual (https://doi.org/10.1007/s00466-014-1109-y) (https://doi.org/10.1016/j.cma.2022.115535)
   # "sphere" for spherical decompostion (volumetric and deviatoric parts) (https://doi.org/10.1016/j.jmps.2009.04.011)
-  set Decomposition = hybrid
+  set Decomposition = hybridnotension
 
   # Numerical
   set Constant small quantity k = 1.0e-6
@@ -44,13 +45,15 @@ subsection Material
     set Young's modulus = 210000
     set Poisson's ratio = 0.3
     set Critical energy release rate = 2.7
-    set Phase field length scale = 0.015
+    set Phase field length scale = 0.016
     set Plane state = strain
+    set Fatigue degradation = KristensenAsymptotic
+    set Fatigue accumulation = Kristensen
 end
 
 subsection Finite element system
   # Physical dimension
-  set Physical dimension = 3
+  set Physical dimension = 2
 
   # Displacement system polynomial order
   set Polynomial degree = 1
@@ -88,6 +91,6 @@ subsection Finite element system
   # and this is how phi_ref is determined.
   set Phase field initial influential ratio (for refinement) = 2
   set Phase field final influential ratio (for refinement) = 3
-  set Minimum relative size of refined cells w.r.t l_phi = 0.5
+  set Minimum relative size of refined cells w.r.t l_phi = 0.2
 end
 

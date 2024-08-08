@@ -8,8 +8,7 @@
 # For "neumann", the third part is in MPa (or the unit of gradient)
 # For "neumannrate", the third part is in MPa/s (or the unit of the rate of gradient)
 # For "sineneumann"/"triangularneumann", the third part is dimensionless. And add a fourth part being frequency(Hz), mean(MPa), and amplitude(MPa), for example "20 1 2"
-1 dirichlet 0 0
-1 triangulardirichlet 1 0.5 0.0001 0.0001
+1 triangulardirichlet 1 1 0.0 0.002
 2 dirichlet 0 0
 2 dirichlet 1 0
 

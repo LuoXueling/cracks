@@ -22,7 +22,7 @@ subsection Runtime
   set Newton lower bound = 1.0e-6
   set Newton maximum steps = 50
   set Upper Newton rho = 0.999
-  set Line search maximum steps = 10
+  set Maximum number of adjustment steps of Newton solution = 10
   set Line search damping = 0.5
   set Save vtk per step = 10
 
@@ -88,6 +88,6 @@ subsection Finite element system
   # and this is how phi_ref is determined.
   set Phase field initial influential ratio (for refinement) = 2
   set Phase field final influential ratio (for refinement) = 3
-  set Minimum relative size of refined cells w.r.t l_phi = 0.5
+  set Minimum relative size of refined cells w.r.t l_phi = 0.2
 end
 
