@@ -121,8 +121,9 @@ void Runtime::subsection_declare_parameters(ParameterHandler &prm) {
     prm.declare_entry("Phase field update", "newton",
                       Patterns::Selection("newton|linear"));
 
-    prm.declare_entry("Decomposition", "hybrid",
-                      Patterns::Selection("none|hybrid|sphere|eigen|hybridnotension"));
+    prm.declare_entry(
+        "Decomposition", "hybrid",
+        Patterns::Selection("none|hybrid|sphere|eigen|hybridnotension"));
 
     prm.declare_entry("Constant small quantity k", "1.0e-6",
                       Patterns::Double(0));
@@ -201,9 +202,9 @@ void Material::subsection_declare_parameters(ParameterHandler &prm) {
     prm.declare_entry(
         "Fatigue degradation", "CarraraAsymptotic",
         Patterns::Selection("CarraraAsymptotic|KristensenAsymptotic"));
-    prm.declare_entry(
-        "Fatigue accumulation", "CarraraNoMeanEffect",
-        Patterns::Selection("CarraraNoMeanEffect|CarraraMeanEffect|Kristensen"));
+    prm.declare_entry("Fatigue accumulation", "CarraraNoMeanEffect",
+                      Patterns::Selection(
+                          "CarraraNoMeanEffect|CarraraMeanEffect|Kristensen"));
   }
   prm.leave_subsection();
 }
