@@ -17,12 +17,7 @@ public:
             double degrade_second_derivative, Controller<dim> &ctl) {
     double increm = increment(lqph_q, phasefield, degrade, degrade_derivative,
                               degrade_second_derivative, ctl);
-    double increm_derivative =
-        increment_derivative(lqph_q, phasefield, degrade, degrade_derivative,
-                  degrade_second_derivative, ctl);
     lqph_q->update("Fatigue history", increm, "accumulate");
-    lqph_q->update("Fatigue history phase field derivative", increm_derivative,
-                   "accumulate");
   }
 
   virtual double increment(const std::shared_ptr<PointHistory> &lqph,
