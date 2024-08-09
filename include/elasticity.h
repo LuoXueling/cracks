@@ -30,9 +30,6 @@ public:
   void output_results(DataOut<dim> &data_out, Controller<dim> &ctl) override;
 
   void compute_load(Controller<dim> &ctl);
-  unsigned int solve_system(LA::MPI::Vector &solution,
-                            LA::MPI::SparseMatrix &system_matrix,
-                            LA::MPI::Vector &system_rhs, Controller<dim> &ctl);
 
   ConstitutiveLaw<dim> constitutive_law;
 
@@ -48,7 +45,7 @@ Elasticity<dim>::Elasticity(const unsigned int n_components,
       constitutive_law(ctl.params.E, ctl.params.v, ctl.params.plane_state),
       stress(constitutive_law) {
   this->newton_ctl =
-      select_newton_variation<dim>(ctl.params.adjustment_method_elasticity);
+      select_newton_variation<dim>(ctl.params.adjustment_method_elasticity, ctl);
 }
 
 template <int dim>

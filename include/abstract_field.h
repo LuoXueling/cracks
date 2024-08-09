@@ -107,7 +107,7 @@ AbstractField<dim>::AbstractField(const unsigned int n_components,
     component_masks.push_back(ComponentMask(n_components, false));
     component_masks[d].set(d, true);
   }
-  newton_ctl = select_newton_variation<dim>(ctl.params.adjustment_method);
+  newton_ctl = select_newton_variation<dim>(ctl.params.adjustment_method, ctl);
   define_boundary_condition(boundary_from, ctl);
 }
 

@@ -83,6 +83,8 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
   double finishing_timestep_loop = 0;
   double tmp_timestep = 0.0;
 
+  std::unique_ptr<AdaptiveTimeStep<dim>> time_stepping =
+      select_adaptive_timestep<dim>(ctl.params.adaptive_timestep, ctl);
   ctl.current_timestep = ctl.params.timestep;
   // Initialize old and old_old timestep sizes
   ctl.old_timestep = ctl.current_timestep;
@@ -106,9 +108,6 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
     ctl.dcout << std::endl;
 
     ctl.time += ctl.current_timestep;
-
-    std::unique_ptr<AdaptiveTimeStep<dim>> time_stepping =
-        select_adaptive_timestep<dim>(ctl.params.adaptive_timestep);
 
     do {
       // The Newton method can either stagnate or the linear solver

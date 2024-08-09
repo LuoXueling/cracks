@@ -25,6 +25,8 @@ public:
 
 template <int dim> class NewtonVariation {
 public:
+  NewtonVariation(Controller<dim> &ctl) = default;
+
   virtual bool quit_newton(NewtonInformation<dim> &info, Controller<dim> &ctl) {
     return info.residual <= ctl.params.lower_bound_newton_residual;
   };
@@ -218,13 +220,13 @@ public:
 
 template <int dim>
 std::unique_ptr<NewtonVariation<dim>>
-select_newton_variation(std::string method) {
+select_newton_variation(std::string method, Controller<dim> & ctl) {
   if (method == "none")
-    return std::make_unique<NewtonVariation<dim>>();
+    return std::make_unique<NewtonVariation<dim>>(ctl);
   else if (method == "linesearch")
-    return std::make_unique<LineSearch<dim>>();
+    return std::make_unique<LineSearch<dim>>(ctl);
   else if (method == "arclength")
-    return std::make_unique<ArcLengthControl<dim>>();
+    return std::make_unique<ArcLengthControl<dim>>(ctl);
   else
     AssertThrow(false, ExcNotImplemented());
 }

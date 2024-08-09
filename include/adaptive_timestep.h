@@ -9,7 +9,7 @@
 
 template <int dim> class AdaptiveTimeStep {
 public:
-  AdaptiveTimeStep() : last_time(0), count_reduction(0){};
+  AdaptiveTimeStep(Controller<dim> &ctl) : last_time(0), count_reduction(0){};
 
   void execute(Controller<dim> &ctl) {
     ctl.time -= ctl.current_timestep;
@@ -58,11 +58,11 @@ public:
 
 template <int dim>
 std::unique_ptr<AdaptiveTimeStep<dim>>
-select_adaptive_timestep(std::string method) {
+select_adaptive_timestep(std::string method, Controller<dim> &ctl) {
   if (method == "constant")
-    return std::make_unique<ConstantTimeStep<dim>>();
+    return std::make_unique<ConstantTimeStep<dim>>(ctl);
   else if (method == "exponential")
-    return std::make_unique<AdaptiveTimeStep<dim>>();
+    return std::make_unique<AdaptiveTimeStep<dim>>(ctl);
   else
     AssertThrow(false, ExcNotImplemented());
 }
