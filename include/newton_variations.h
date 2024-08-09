@@ -75,6 +75,13 @@ public:
 
 template <int dim> class LineSearch : public NewtonVariation<dim> {
 public:
+  LineSearch(Controller<dim> &ctl) : NewtonVariation<dim>(ctl) {
+    AssertThrow(ctl.params.linesearch_parameters != "",
+                ExcInternalError("No damping factor is assigned."));
+    std::istringstream iss(ctl.params.adjustment_method_parameters);
+    iss >> damping;
+  }
+
   bool quit_adjustment(NewtonInformation<dim> &info, Controller<dim> &ctl) {
     return info.new_residual < info.residual;
   }
@@ -86,12 +93,13 @@ public:
                                LA::MPI::Vector &neumann_rhs,
                                NewtonInformation<dim> &info,
                                Controller<dim> &ctl) override {
-    if (ctl.params.line_search_damping >= 1) {
+    if (damping >= 1) {
       throw SolverControl::NoConvergence(0, 0);
     }
     solution += negative_increment;
-    negative_increment *= ctl.params.line_search_damping;
+    negative_increment *= damping;
   };
+  double damping;
 };
 
 template <int dim> class ArcLengthControl : public NewtonVariation<dim> {
@@ -220,7 +228,7 @@ public:
 
 template <int dim>
 std::unique_ptr<NewtonVariation<dim>>
-select_newton_variation(std::string method, Controller<dim> & ctl) {
+select_newton_variation(std::string method, Controller<dim> &ctl) {
   if (method == "none")
     return std::make_unique<NewtonVariation<dim>>(ctl);
   else if (method == "linesearch")

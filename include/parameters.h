@@ -65,6 +65,7 @@ struct Runtime {
   unsigned int max_load_step;
   unsigned int max_no_timesteps;
   std::string adaptive_timestep;
+  std::string adaptive_timestep_parameters;
   double timestep;
   double timestep_size_2;
   unsigned int switch_timestep;
@@ -74,8 +75,9 @@ struct Runtime {
   double upper_newton_rho;
   std::string adjustment_method;
   std::string adjustment_method_elasticity;
+  std::string linesearch_parameters;
+  std::string modified_newton_parameters;
   unsigned int max_adjustment_steps;
-  double line_search_damping;
   std::string phase_field_scheme;
   std::string decomposition;
   double constant_k;
@@ -94,6 +96,7 @@ void Runtime::subsection_declare_parameters(ParameterHandler &prm) {
 
     prm.declare_entry("Adaptive timestep", "exponential",
                       Patterns::Selection("exponential|constant"));
+    prm.declare_entry("Adaptive timestep parameters", "", Patterns::Anything());
     prm.declare_entry("Timestep size", "1.0", Patterns::Double(0));
 
     prm.declare_entry("Timestep size to switch to", "1.0", Patterns::Double(0));
@@ -112,6 +115,10 @@ void Runtime::subsection_declare_parameters(ParameterHandler &prm) {
 
     prm.declare_entry("Adjustment method for elasticity", "linesearch",
                       Patterns::Selection("none|linesearch|arclength"));
+    
+    prm.declare_entry("Parameters of line search", "0.1", Patterns::Anything());
+    prm.declare_entry("Parameters of modified newton", "",
+                      Patterns::Anything());
 
     prm.declare_entry("Maximum number of adjustment steps of Newton solution",
                       "5", Patterns::Integer(0));
@@ -138,6 +145,7 @@ void Runtime::subsection_parse_parameters(ParameterHandler &prm) {
     max_load_step = prm.get_integer("Max load step");
     max_no_timesteps = prm.get_integer("Max No of timesteps");
     adaptive_timestep = prm.get("Adaptive timestep");
+    adaptive_timestep_parameters = prm.get("Adaptive timestep parameters");
     timestep = prm.get_double("Timestep size");
     timestep_size_2 = prm.get_double("Timestep size to switch to");
     switch_timestep = prm.get_integer("Switch timestep after steps");
@@ -157,7 +165,8 @@ void Runtime::subsection_parse_parameters(ParameterHandler &prm) {
     adjustment_method_elasticity = prm.get("Adjustment method for elasticity");
     max_adjustment_steps = prm.get_integer(
         "Maximum number of adjustment steps of Newton solution");
-    line_search_damping = prm.get_double("Line search damping");
+    linesearch_parameters = prm.get("Parameters of line search");
+    modified_newton_parameters = prm.get("Parameters of modified newton");
 
     phase_field_scheme = prm.get("Phase field update");
     decomposition = prm.get("Decomposition");
@@ -182,6 +191,7 @@ struct Material {
   std::string degradation;
   std::string fatigue_degradation;
   std::string fatigue_accumulation;
+  std::string fatigue_accumulation_parameters;
 
   static void subsection_declare_parameters(ParameterHandler &prm);
 
@@ -205,6 +215,8 @@ void Material::subsection_declare_parameters(ParameterHandler &prm) {
     prm.declare_entry("Fatigue accumulation", "CarraraNoMeanEffect",
                       Patterns::Selection(
                           "CarraraNoMeanEffect|CarraraMeanEffect|Kristensen"));
+    prm.declare_entry("Fatigue accumulation parameters", "",
+                      Patterns::Anything());
   }
   prm.leave_subsection();
 }
@@ -220,6 +232,8 @@ void Material::subsection_parse_parameters(ParameterHandler &prm) {
     degradation = prm.get("Degradation");
     fatigue_degradation = prm.get("Fatigue degradation");
     fatigue_accumulation = prm.get("Fatigue accumulation");
+    fatigue_accumulation_parameters =
+        prm.get("Fatigue accumulation parameters");
   }
   prm.leave_subsection();
   lame_coefficient_mu = E / (2.0 * (1 + v));
