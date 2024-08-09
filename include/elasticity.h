@@ -10,6 +10,7 @@
 #include "dealii_includes.h"
 #include "decomposition.h"
 #include "degradation.h"
+#include "newton_variations.h"
 #include "parameters.h"
 #include "post_processors.h"
 #include "utils.h"
@@ -24,7 +25,8 @@ public:
 
   void assemble_newton_system(bool residual_only, LA::MPI::Vector &neumann_rhs,
                               Controller<dim> &ctl) override;
-  unsigned int solve(Controller<dim> &ctl) override;
+  unsigned int solve(NewtonInformation<dim> &info,
+                     Controller<dim> &ctl) override;
   void output_results(DataOut<dim> &data_out, Controller<dim> &ctl) override;
 
   void compute_load(Controller<dim> &ctl);
@@ -220,24 +222,22 @@ void Elasticity<dim>::assemble_newton_system(bool residual_only,
   (this->system_rhs).compress(VectorOperation::add);
 }
 
-template <int dim> unsigned int Elasticity<dim>::solve(Controller<dim> &ctl) {
-  return solve_system(this->system_solution, this->system_matrix,
-                      this->system_rhs, ctl);
-}
-
 template <int dim>
-unsigned int Elasticity<dim>::solve_system(LA::MPI::Vector &solution,
-                                           LA::MPI::SparseMatrix &system_matrix,
-                                           LA::MPI::Vector &system_rhs,
-                                           Controller<dim> &ctl) {
+unsigned int Elasticity<dim>::solve(NewtonInformation<dim> &info,
+                                    Controller<dim> &ctl) {
   if (ctl.params.direct_solver) {
-    SolverControl solver_control;
-    TrilinosWrappers::SolverDirect solver(solver_control);
-    solver.solve(system_matrix, solution, system_rhs);
-    return solver_control.last_step();
+    if (info.system_matrix_rebuilt) {
+      ctl.timer.enter_subsection("Factorization");
+      this->direct_solver.initialize(this->system_matrix);
+      ctl.timer.leave_subsection("Factorization");
+    }
+    ctl.timer.enter_subsection("Solve LUx=b");
+    this->direct_solver.solve(this->system_solution, this->system_rhs);
+    ctl.timer.leave_subsection("Solve LUx=b");
+    return this->solver_control.last_step();
   } else {
     SolverControl solver_control((this->dof_handler).n_dofs(),
-                                 1e-8 * system_rhs.l2_norm());
+                                 1e-8 * this->system_rhs.l2_norm());
     ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear "
                        "system - preconditioner"
                     << std::endl;
@@ -249,19 +249,20 @@ unsigned int Elasticity<dim>::solve_system(LA::MPI::Vector &solution,
       data.higher_order_elements = true;
       data.smoother_sweeps = 2;
       data.aggregation_threshold = 0.02;
-      (this->preconditioner).initialize(system_matrix, data);
+      (this->preconditioner).initialize(this->system_matrix, data);
     }
     ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear "
                        "system - solve"
                     << std::endl;
-    solver.solve(system_matrix, solution, system_rhs, (this->preconditioner));
+    solver.solve(this->system_matrix, this->system_solution, this->system_rhs,
+                 (this->preconditioner));
     ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear "
                        "system - solve complete"
                     << std::endl;
 
     return solver_control.last_step();
   }
-};
+}
 
 template <int dim> class StressProcessor : public CellProcessor<dim> {
 public:

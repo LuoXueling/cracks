@@ -20,6 +20,7 @@ public:
   double i_step;
   unsigned int adjustment_step;
   unsigned int iterative_solver_nonlinear_step;
+  bool system_matrix_rebuilt;
 };
 
 template <int dim> class NewtonVariation {
@@ -45,10 +46,14 @@ public:
   };
   virtual bool rebuild_jacobian(NewtonInformation<dim> &info,
                                 Controller<dim> &ctl) {
-    if (info.i_step == 1 || (info.residual / info.old_residual) > 0.1) {
+    if (ctl.params.direct_solver) {
       return true;
     } else {
-      return false;
+      if (info.i_step == 1 || (info.residual / info.old_residual) > 0.1) {
+        return true;
+      } else {
+        return false;
+      }
     }
   };
   virtual void prepare_next_adjustment(LA::MPI::Vector &negative_increment,
@@ -68,6 +73,10 @@ public:
 
 template <int dim> class LineSearch : public NewtonVariation<dim> {
 public:
+  bool quit_adjustment(NewtonInformation<dim> &info, Controller<dim> &ctl) {
+    return info.new_residual < info.residual;
+  }
+
   void prepare_next_adjustment(LA::MPI::Vector &negative_increment,
                                LA::MPI::Vector &solution,
                                LA::MPI::SparseMatrix &system_matrix,

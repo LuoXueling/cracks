@@ -24,7 +24,8 @@ public:
   virtual void assemble_linear_system(Controller<dim> &ctl) {
     AssertThrow(false, ExcNotImplemented())
   };
-  virtual unsigned int solve(Controller<dim> &ctl) {
+  virtual unsigned int solve(NewtonInformation<dim> &info,
+                             Controller<dim> &ctl) {
     AssertThrow(false, ExcNotImplemented())
   };
   virtual void output_results(DataOut<dim> &data_out, Controller<dim> &ctl) {
@@ -88,6 +89,9 @@ public:
   //  LA::MPI::Vector diag_mass, diag_mass_relevant;
   LA::MPI::Vector system_solution;
 
+  SolverControl direct_solver_control;
+  TrilinosWrappers::SolverDirect direct_solver;
+
   std::unique_ptr<NewtonVariation<dim>> newton_ctl;
 };
 
@@ -97,7 +101,8 @@ AbstractField<dim>::AbstractField(const unsigned int n_components,
                                   std::string update_scheme,
                                   Controller<dim> &ctl)
     : fe(FE_Q<dim>(ctl.params.poly_degree), n_components),
-      dof_handler(ctl.triangulation), update_scheme_timestep(update_scheme) {
+      dof_handler(ctl.triangulation), update_scheme_timestep(update_scheme),
+      direct_solver(direct_solver_control) {
   for (unsigned int d = 0; d < n_components; ++d) {
     component_masks.push_back(ComponentMask(n_components, false));
     component_masks[d].set(d, true);
@@ -373,6 +378,7 @@ double AbstractField<dim>::update_newton_system(Controller<dim> &ctl) {
   newton_info.iterative_solver_nonlinear_step = 0;
   newton_info.adjustment_step = 0;
   newton_info.new_residual = 0.0;
+  newton_info.system_matrix_rebuilt = false;
 
   ctl.dcout << "0\t" << std::scientific << newton_info.residual << std::endl;
 
@@ -388,6 +394,7 @@ double AbstractField<dim>::update_newton_system(Controller<dim> &ctl) {
           << "Solve Newton system - Newton iteration - system assemble"
           << std::endl;
       assemble_newton_system(false, neumann_rhs, ctl);
+      newton_info.system_matrix_rebuilt = true;
     }
 
     // Solve Ax = b
@@ -395,6 +402,7 @@ double AbstractField<dim>::update_newton_system(Controller<dim> &ctl) {
         << "Solve Newton system - Newton iteration - solve linear system"
         << std::endl;
     newton_info.iterative_solver_nonlinear_step = solve(ctl);
+    newton_info.system_matrix_rebuilt = false;
     ctl.debug_dcout
         << "Solve Newton system - Newton iteration - solve linear system exit"
         << std::endl;
@@ -421,15 +429,16 @@ double AbstractField<dim>::update_newton_system(Controller<dim> &ctl) {
                              "- system assemble"
                           << std::endl;
           assemble_newton_system(false, neumann_rhs, ctl);
+          newton_info.system_matrix_rebuilt = true;
         }
-        ctl.debug_dcout << "Solve Newton system - Newton iteration - resolve "
-                           "with new jacobian"
+        ctl.debug_dcout << "Solve Newton system - Newton iteration - resolve"
                         << std::endl;
         newton_info.iterative_solver_nonlinear_step = solve(ctl);
+        newton_info.system_matrix_rebuilt = false;
       } else {
-        ctl.debug_dcout << "Solve Newton system - Newton iteration - resolve "
-                           "with old jacobian"
-                        << std::endl;
+        ctl.debug_dcout
+            << "Solve Newton system - Newton iteration - residual assemble"
+            << std::endl;
         assemble_newton_system(true, neumann_rhs, ctl);
       }
 
@@ -469,17 +478,13 @@ double AbstractField<dim>::update_newton_system(Controller<dim> &ctl) {
     // Terminate if nothing is solved anymore. After this,
     // we cut the time step.
     if (newton_ctl->give_up(newton_info, ctl)) {
-      break;
+      ctl.dcout << "Newton iteration did not converge in " << newton_info.i_step
+                << " steps. Go to adaptive time stepping" << std::endl;
+      throw SolverControl::NoConvergence(0, 0);
     }
 
     // Updates
     newton_info.i_step++;
-  }
-
-  if (!(newton_ctl->quit_newton(newton_info, ctl))) {
-    ctl.dcout << "Newton iteration did not converge in " << newton_info.i_step
-              << " steps. Go to adaptive time stepping" << std::endl;
-    throw SolverControl::NoConvergence(0, 0);
   }
 
   solution = distributed_solution;

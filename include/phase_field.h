@@ -24,7 +24,8 @@ public:
   void assemble_newton_system(bool residual_only, LA::MPI::Vector &neumann_rhs,
                               Controller<dim> &ctl) override;
   void assemble_linear_system(Controller<dim> &ctl) override;
-  unsigned int solve(Controller<dim> &ctl) override;
+  unsigned int solve(NewtonInformation<dim> &info,
+                     Controller<dim> &ctl) override;
   void output_results(DataOut<dim> &data_out, Controller<dim> &ctl) override;
 
   void enforce_phase_field_limitation(Controller<dim> &ctl);
@@ -252,13 +253,20 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
   (this->system_rhs).compress(VectorOperation::add);
 }
 
-template <int dim> unsigned int PhaseField<dim>::solve(Controller<dim> &ctl) {
+template <int dim>
+unsigned int PhaseField<dim>::solve(NewtonInformation<dim> &info,
+                                    Controller<dim> &ctl) {
 
   if (ctl.params.direct_solver) {
-    SolverControl solver_control;
-    TrilinosWrappers::SolverDirect solver(solver_control);
-    solver.solve(this->system_matrix, this->system_solution, this->system_rhs);
-    return 1;
+    if (info.system_matrix_rebuilt) {
+      ctl.timer.enter_subsection("Factorization");
+      this->direct_solver.initialize(this->system_matrix);
+      ctl.timer.leave_subsection("Factorization");
+    }
+    ctl.timer.enter_subsection("Solve LUx=b");
+    this->direct_solver.solve(this->system_solution, this->system_rhs);
+    ctl.timer.leave_subsection("Solve LUx=b");
+    return this->solver_control.last_step();
   } else {
     SolverControl solver_control((this->dof_handler).n_dofs(),
                                  1e-8 * (this->system_rhs).l2_norm());
