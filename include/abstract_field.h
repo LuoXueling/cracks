@@ -28,6 +28,12 @@ public:
                              Controller<dim> &ctl) {
     AssertThrow(false, ExcNotImplemented())
   };
+  unsigned int solve(Controller<dim> &ctl) {
+    NewtonInformation<dim> dummy_info;
+    dummy_info.system_matrix_rebuilt =
+        true; // Refactorization at every timestep for now.
+    solve(dummy_info, ctl);
+  };
   virtual void output_results(DataOut<dim> &data_out, Controller<dim> &ctl) {
     AssertThrow(false, ExcNotImplemented())
   };
@@ -401,7 +407,7 @@ double AbstractField<dim>::update_newton_system(Controller<dim> &ctl) {
     ctl.debug_dcout
         << "Solve Newton system - Newton iteration - solve linear system"
         << std::endl;
-    newton_info.iterative_solver_nonlinear_step = solve(ctl);
+    newton_info.iterative_solver_nonlinear_step = solve(newton_info, ctl);
     newton_info.system_matrix_rebuilt = false;
     ctl.debug_dcout
         << "Solve Newton system - Newton iteration - solve linear system exit"
@@ -433,7 +439,7 @@ double AbstractField<dim>::update_newton_system(Controller<dim> &ctl) {
         }
         ctl.debug_dcout << "Solve Newton system - Newton iteration - resolve"
                         << std::endl;
-        newton_info.iterative_solver_nonlinear_step = solve(ctl);
+        newton_info.iterative_solver_nonlinear_step = solve(newton_info, ctl);
         newton_info.system_matrix_rebuilt = false;
       } else {
         ctl.debug_dcout

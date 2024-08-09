@@ -25,7 +25,7 @@ public:
 
 template <int dim> class NewtonVariation {
 public:
-  NewtonVariation(Controller<dim> &ctl) = default;
+  NewtonVariation(Controller<dim> &ctl){};
 
   virtual bool quit_newton(NewtonInformation<dim> &info, Controller<dim> &ctl) {
     return info.residual <= ctl.params.lower_bound_newton_residual;
@@ -71,7 +71,7 @@ public:
   virtual bool give_up(NewtonInformation<dim> &info, Controller<dim> &ctl) {
     return ((info.residual / info.old_residual > ctl.params.upper_newton_rho) &&
             (info.i_step > 5)) ||
-           info.i_step > 10;
+           info.i_step == ctl.params.max_no_newton_steps - 1;
   };
 };
 
@@ -80,7 +80,7 @@ public:
   LineSearch(Controller<dim> &ctl) : NewtonVariation<dim>(ctl) {
     AssertThrow(ctl.params.linesearch_parameters != "",
                 ExcInternalError("No damping factor is assigned."));
-    std::istringstream iss(ctl.params.adjustment_method_parameters);
+    std::istringstream iss(ctl.params.linesearch_parameters);
     iss >> damping;
   }
 
@@ -111,8 +111,6 @@ select_newton_variation(std::string method, Controller<dim> &ctl) {
     return std::make_unique<NewtonVariation<dim>>(ctl);
   else if (method == "linesearch")
     return std::make_unique<LineSearch<dim>>(ctl);
-  else if (method == "arclength")
-    return std::make_unique<ArcLengthControl<dim>>(ctl);
   else
     AssertThrow(false, ExcNotImplemented());
 }

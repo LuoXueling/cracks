@@ -52,6 +52,7 @@ public:
 
 template <int dim> class ConstantTimeStep : public AdaptiveTimeStep<dim> {
 public:
+  ConstantTimeStep(Controller<dim> &ctl): AdaptiveTimeStep<dim>(ctl){};
   void failure_criteria(double new_timestep, Controller<dim> &ctl) override {
     AssertThrow(false,
                 ExcInternalError(
