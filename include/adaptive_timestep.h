@@ -52,7 +52,7 @@ public:
 
 template <int dim> class ConstantTimeStep : public AdaptiveTimeStep<dim> {
 public:
-  ConstantTimeStep(Controller<dim> &ctl): AdaptiveTimeStep<dim>(ctl){};
+  ConstantTimeStep(Controller<dim> &ctl) : AdaptiveTimeStep<dim>(ctl){};
   void failure_criteria(double new_timestep, Controller<dim> &ctl) override {
     AssertThrow(false,
                 ExcInternalError(
@@ -63,8 +63,8 @@ public:
 
 template <int dim> class KristensenCLATimeStep : public ConstantTimeStep<dim> {
 public:
-  KristensenCLATimeStep(Controller<dim> &ctl): ConstantTimeStep<dim>(ctl){
-    AssertThrow(ctl.params.fatigue_accumulation == "KristensenCLAAccumulation",
+  KristensenCLATimeStep(Controller<dim> &ctl) : ConstantTimeStep<dim>(ctl) {
+    AssertThrow(ctl.params.fatigue_accumulation == "KristensenCLA",
                 ExcInternalError("KristensenCLATimeStep must be used "
                                  "with KristensenCLAAccumulation."));
     AssertThrow(ctl.params.adaptive_timestep_parameters != "",
@@ -78,7 +78,7 @@ public:
                 ExcInternalError("The initial timestep has to be switched when "
                                  "reaching a quarter of a cycle."));
     n_cycles_per_vtk = static_cast<int>(ctl.params.save_vtk_per_step /
-                                            (ctl.params.timestep_size_2 / T));
+                                        (T / ctl.params.timestep_size_2));
   }
   void initialize_timestep(Controller<dim> &ctl) {
     ctl.dcout << "KristensenCLATimeStep using parameter: R=" << R << ", f=" << f

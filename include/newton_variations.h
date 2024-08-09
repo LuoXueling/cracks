@@ -82,7 +82,7 @@ public:
       : NewtonVariation<dim>(ctl), record_c(0), record_i(0) {
     AssertThrow(ctl.params.linesearch_parameters != "",
                 ExcInternalError("No parameters assigned to modified newton."));
-    std::istringstream iss(ctl.params.linesearch_parameters);
+    std::istringstream iss(ctl.params.modified_newton_parameters);
     iss >> n_i >> n_c;
     if (ctl.params.max_no_newton_steps < std::max(n_i, n_c)) {
       ctl.params.max_no_newton_steps = 2 * std::max(n_i, n_c);
@@ -94,8 +94,8 @@ public:
 
   bool rebuild_jacobian(NewtonInformation<dim> &info,
                         Controller<dim> &ctl) override {
-    if (info.i_step == 1 || record_i > n_i ||
-        (ctl.timestep_number - record_c) > record_c) {
+    if (ctl.timestep_number == 0 || record_i > n_i ||
+        (ctl.timestep_number - record_c) > n_c) {
       record_i = 0;
       record_c = ctl.timestep_number;
       return true;

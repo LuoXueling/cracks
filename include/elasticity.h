@@ -231,7 +231,7 @@ unsigned int Elasticity<dim>::solve(NewtonInformation<dim> &info,
     ctl.timer.enter_subsection("Solve LUx=b");
     this->direct_solver.solve(this->system_solution, this->system_rhs);
     ctl.timer.leave_subsection("Solve LUx=b");
-    return this->direct_solver_control.last_step();
+    return 1;
   } else {
     SolverControl solver_control((this->dof_handler).n_dofs(),
                                  1e-8 * this->system_rhs.l2_norm());

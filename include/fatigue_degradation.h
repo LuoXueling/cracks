@@ -83,8 +83,8 @@ public:
                    double degrade, double degrade_derivative,
                    double degrade_second_derivative,
                    Controller<dim> &ctl) override {
-    double dpsi = lqph->get_increment("Positive elastic energy", 0.0);
-    double increm = dpsi * (1 - R * R * (R >= 0 ? 1 : 0));
+    double psi = lqph->get("Positive elastic energy", 0.0);
+    double increm = psi * (1 - R * R * (R >= 0 ? 1 : 0));
     return increm;
   };
   double R;
