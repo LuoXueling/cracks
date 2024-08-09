@@ -85,6 +85,9 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
 
   std::unique_ptr<AdaptiveTimeStep<dim>> time_stepping =
       select_adaptive_timestep<dim>(ctl.params.adaptive_timestep, ctl);
+
+  time_stepping->initialize_timestep(ctl);
+
   ctl.current_timestep = ctl.params.timestep;
   // Initialize old and old_old timestep sizes
   ctl.old_timestep = ctl.current_timestep;

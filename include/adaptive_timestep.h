@@ -11,6 +11,8 @@ template <int dim> class AdaptiveTimeStep {
 public:
   AdaptiveTimeStep(Controller<dim> &ctl) : last_time(0), count_reduction(0){};
 
+  virtual void initialize_timestep(Controller<dim> &ctl) {};
+
   void execute(Controller<dim> &ctl) {
     ctl.time -= ctl.current_timestep;
     check_time(ctl);
