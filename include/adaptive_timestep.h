@@ -6,6 +6,8 @@
 #define CRACKS_ADAPTIVE_TIMESTEP_H
 
 #include "controller.h"
+#include <fstream>
+#include <iostream>
 
 template <int dim> class AdaptiveTimeStep {
 public:
@@ -58,6 +60,39 @@ public:
   }
 };
 
+template <int dim> class KristensenCLATimeStep : public ConstantTimeStep<dim> {
+public:
+  KristensenCLATimeStep(Controller<dim> &ctl): ConstantTimeStep<dim>(ctl){
+    AssertThrow(ctl.params.fatigue_accumulation == "KristensenCLAAccumulation",
+                ExcInternalError("KristensenCLATimeStep must be used "
+                                 "with KristensenCLAAccumulation."));
+    AssertThrow(ctl.params.adaptive_timestep_parameters != "",
+                ExcInternalError(
+                    "Parameters of KristensenCLATimeStep is not assigned."));
+    std::istringstream iss(ctl.params.adaptive_timestep_parameters);
+    iss >> R >> f;
+    T = 1 / f;
+    AssertThrow(ctl.params.timestep * (ctl.params.switch_timestep + 1) ==
+                    0.25 * T,
+                ExcInternalError("The initial timestep has to be switched when "
+                                 "reaching a quarter of a cycle."));
+    n_cycles_per_vtk = static_cast<int>(ctl.params.save_vtk_per_step /
+                                            (ctl.params.timestep_size_2 / T));
+  }
+  void initialize_timestep(Controller<dim> &ctl) {
+    ctl.dcout << "KristensenCLATimeStep using parameter: R=" << R << ", f=" << f
+              << "Hz" << std::endl;
+
+    ctl.params.timestep_size_2 = T;
+    ctl.params.save_vtk_per_step = n_cycles_per_vtk;
+    ctl.dcout << "KristensenCLATimeStep setting timestep to a cycle (" << T
+              << "s), setting save_vtk_per_step to " << n_cycles_per_vtk
+              << std::endl;
+  }
+  double R, f, T;
+  int n_cycles_per_vtk;
+};
+
 template <int dim>
 std::unique_ptr<AdaptiveTimeStep<dim>>
 select_adaptive_timestep(std::string method, Controller<dim> &ctl) {
@@ -65,6 +100,8 @@ select_adaptive_timestep(std::string method, Controller<dim> &ctl) {
     return std::make_unique<ConstantTimeStep<dim>>(ctl);
   else if (method == "exponential")
     return std::make_unique<AdaptiveTimeStep<dim>>(ctl);
+  else if (method == "KristensenCLA")
+    return std::make_unique<KristensenCLATimeStep<dim>>(ctl);
   else
     AssertThrow(false, ExcNotImplemented());
 }

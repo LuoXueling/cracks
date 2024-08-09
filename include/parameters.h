@@ -94,8 +94,9 @@ void Runtime::subsection_declare_parameters(ParameterHandler &prm) {
     prm.declare_entry("Max load step", "10", Patterns::Integer(1));
     prm.declare_entry("Max No of timesteps", "1", Patterns::Integer(0));
 
-    prm.declare_entry("Adaptive timestep", "exponential",
-                      Patterns::Selection("exponential|constant"));
+    prm.declare_entry(
+        "Adaptive timestep", "exponential",
+        Patterns::Selection("exponential|constant|KristensenCLA"));
     prm.declare_entry("Adaptive timestep parameters", "", Patterns::Anything());
     prm.declare_entry("Timestep size", "1.0", Patterns::Double(0));
 
@@ -212,9 +213,10 @@ void Material::subsection_declare_parameters(ParameterHandler &prm) {
     prm.declare_entry(
         "Fatigue degradation", "CarraraAsymptotic",
         Patterns::Selection("CarraraAsymptotic|KristensenAsymptotic"));
-    prm.declare_entry("Fatigue accumulation", "CarraraNoMeanEffect",
-                      Patterns::Selection(
-                          "CarraraNoMeanEffect|CarraraMeanEffect|Kristensen"));
+    prm.declare_entry(
+        "Fatigue accumulation", "CarraraNoMeanEffect",
+        Patterns::Selection(
+            "CarraraNoMeanEffect|CarraraMeanEffect|Kristensen|KristensenCLA"));
     prm.declare_entry("Fatigue accumulation parameters", "",
                       Patterns::Anything());
   }

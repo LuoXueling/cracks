@@ -61,6 +61,36 @@ public:
 };
 
 template <int dim>
+class KristensenCLAAccumulation : public FatigueAccumulation<dim> {
+public:
+  KristensenCLAAccumulation(Controller<dim> &ctl)
+      : FatigueAccumulation<dim>(ctl) {
+    AssertThrow(ctl.params.adaptive_timestep == "KristensenCLATimeStep",
+                ExcInternalError("KristensenCLATimeStep must be used "
+                                 "with KristensenCLAAccumulation."));
+    AssertThrow(
+        ctl.params.fatigue_accumulation_parameters != "",
+        ExcInternalError(
+            "Parameters of KristensenCLAAccumulation is not assigned."));
+    std::istringstream iss(ctl.params.fatigue_accumulation_parameters);
+    iss >> R;
+    AssertThrow(
+        R >= 0 || (R < 0 && ctl.params.degradation == "hybridnotension"),
+        ExcInternalError("Cannot use KristensenCLAAccumulation when "
+                         "R<0 while hybridnotension split is not used"));
+  };
+  double increment(const std::shared_ptr<PointHistory> &lqph, double phasefield,
+                   double degrade, double degrade_derivative,
+                   double degrade_second_derivative,
+                   Controller<dim> &ctl) override {
+    double dpsi = lqph->get_increment("Positive elastic energy", 0.0);
+    double increm = dpsi * (1 - R * R * (R >= 0 ? 1 : 0));
+    return increm;
+  };
+  double R;
+};
+
+template <int dim>
 class CarraraMeanEffectAccumulation : public FatigueAccumulation<dim> {
 public:
   CarraraMeanEffectAccumulation(Controller<dim> &ctl)
@@ -95,6 +125,8 @@ select_fatigue_accumulation(std::string method, Controller<dim> &ctl) {
     return std::make_unique<CarraraMeanEffectAccumulation<dim>>(ctl);
   else if (method == "Kristensen")
     return std::make_unique<KristensenAccumulation<dim>>(ctl);
+  else if (method == "KristensenCLA")
+    return std::make_unique<KristensenCLAAccumulation<dim>>(ctl);
   else
     AssertThrow(false, ExcNotImplemented());
 }
