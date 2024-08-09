@@ -32,7 +32,8 @@ public:
   };
   virtual bool quit_adjustment(NewtonInformation<dim> &info,
                                Controller<dim> &ctl) {
-    return info.new_residual < info.residual;
+    // Actually no adjustment is done.
+    return true;
   }
   virtual void apply_increment(LA::MPI::Vector &negative_increment,
                                LA::MPI::Vector &solution,
@@ -68,8 +69,9 @@ public:
     throw SolverControl::NoConvergence(0, 0);
   };
   virtual bool give_up(NewtonInformation<dim> &info, Controller<dim> &ctl) {
-    return (info.residual / info.old_residual > ctl.params.upper_newton_rho) &&
-           (info.i_step > 1);
+    return ((info.residual / info.old_residual > ctl.params.upper_newton_rho) &&
+            (info.i_step > 5)) ||
+           info.i_step > 10;
   };
 };
 
