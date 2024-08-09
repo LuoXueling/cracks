@@ -111,12 +111,15 @@ void Runtime::subsection_declare_parameters(ParameterHandler &prm) {
 
     prm.declare_entry("Upper Newton rho", "0.999", Patterns::Double(0));
 
-    prm.declare_entry("Adjustment method", "linesearch",
-                      Patterns::Selection("none|linesearch"));
+    prm.declare_entry(
+        "Adjustment method", "linesearch",
+        Patterns::Selection("none|linesearch|KristensenModifiedNewton"));
 
-    prm.declare_entry("Adjustment method for elasticity", "linesearch",
-                      Patterns::Selection("none|linesearch|arclength"));
-    
+    prm.declare_entry(
+        "Adjustment method for elasticity", "linesearch",
+        Patterns::Selection(
+            "none|linesearch|KristensenModifiedNewton"));
+
     prm.declare_entry("Parameters of line search", "0.1", Patterns::Anything());
     prm.declare_entry("Parameters of modified newton", "",
                       Patterns::Anything());

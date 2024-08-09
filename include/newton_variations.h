@@ -75,6 +75,44 @@ public:
   };
 };
 
+template <int dim>
+class KristensenModifiedNewton : public NewtonVariation<dim> {
+public:
+  KristensenModifiedNewton(Controller<dim> &ctl)
+      : NewtonVariation<dim>(ctl), record_c(0), record_i(0) {
+    AssertThrow(ctl.params.linesearch_parameters != "",
+                ExcInternalError("No parameters assigned to modified newton."));
+    std::istringstream iss(ctl.params.linesearch_parameters);
+    iss >> n_i >> n_c;
+    if (ctl.params.max_no_newton_steps < std::max(n_i, n_c)) {
+      ctl.params.max_no_newton_steps = 2 * std::max(n_i, n_c);
+      ctl.dcout << "The maximum allowed newton step is lower than settings of "
+                   "KristensenModifiedNewton, making it to "
+                << 2 * std::max(n_i, n_c) << std::endl;
+    }
+  }
+
+  bool rebuild_jacobian(NewtonInformation<dim> &info,
+                        Controller<dim> &ctl) override {
+    if (info.i_step == 1 || record_i > n_i ||
+        (ctl.timestep_number - record_c) > record_c) {
+      record_i = 0;
+      record_c = ctl.timestep_number;
+      return true;
+    } else {
+      record_i++;
+      return false;
+    };
+  };
+
+  double n_i; // One of the subproblems fails to converge in n_i inner Newton
+              // iterations.
+  double n_c; // A number of load increments n_c have passed without updating
+              // the stiffness matrices.
+  unsigned int record_i;
+  unsigned int record_c;
+};
+
 template <int dim> class LineSearch : public NewtonVariation<dim> {
 public:
   LineSearch(Controller<dim> &ctl) : NewtonVariation<dim>(ctl) {
@@ -111,6 +149,8 @@ select_newton_variation(std::string method, Controller<dim> &ctl) {
     return std::make_unique<NewtonVariation<dim>>(ctl);
   else if (method == "linesearch")
     return std::make_unique<LineSearch<dim>>(ctl);
+  else if (method == "KristensenModifiedNewton")
+    return std::make_unique<KristensenModifiedNewton<dim>>(ctl);
   else
     AssertThrow(false, ExcNotImplemented());
 }
