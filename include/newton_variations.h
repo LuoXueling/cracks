@@ -88,16 +88,20 @@ public:
                 ExcInternalError("No parameters assigned to modified newton."));
     std::istringstream iss(ctl.params.modified_newton_parameters);
     iss >> n_i >> n_c;
-    if (ctl.params.max_no_newton_steps < std::max(n_i, n_c)) {
-      ctl.params.max_no_newton_steps = 2 * std::max(n_i, n_c);
-      ctl.dcout << "The maximum allowed newton step is lower than settings of "
-                   "KristensenModifiedNewton, making it to "
-                << 2 * std::max(n_i, n_c) << std::endl;
+    if (ctl.params.max_no_newton_steps < 8 * n_i) {
+      ctl.params.max_no_newton_steps = 8 * n_i;
+      ctl.dcout
+          << "The maximum allowed newton step is much lower than settings of "
+             "KristensenModifiedNewton, making it to "
+          << 8 * n_i << std::endl;
     }
   }
 
   bool rebuild_jacobian(NewtonInformation<dim> &info,
                         Controller<dim> &ctl) override {
+    if (info.i_step == 1) {
+      record_i = 0;
+    }
     if (!ever_built || (record_c <= ctl.last_refinement_timestep_number) ||
         ctl.timestep_number == 0 || record_i > n_i ||
         (ctl.timestep_number - record_c) > n_c) {
@@ -111,6 +115,10 @@ public:
       ctl.debug_dcout << "Forbid rebuilding system matrix" << std::endl;
       return false;
     };
+  };
+
+  bool give_up(NewtonInformation<dim> &info, Controller<dim> &ctl) override {
+    return info.i_step == ctl.params.max_no_newton_steps - 1;
   };
 
   double n_i; // One of the subproblems fails to converge in n_i inner Newton
