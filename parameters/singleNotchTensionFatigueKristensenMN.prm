@@ -27,8 +27,8 @@ subsection Runtime
   set Upper Newton rho = 0.999
   set Maximum number of adjustment steps of Newton solution = 10
 
-  set Adjustment method = none
-  set Adjustment method for elasticity = none
+  set Adjustment method = KristensenModifiedNewton
+  set Adjustment method for elasticity = KristensenModifiedNewton
   set Parameters of line search = 0.1
   set Parameters of modified newton = 25 100
 
