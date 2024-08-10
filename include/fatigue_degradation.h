@@ -65,7 +65,7 @@ class KristensenCLAAccumulation : public FatigueAccumulation<dim> {
 public:
   KristensenCLAAccumulation(Controller<dim> &ctl)
       : FatigueAccumulation<dim>(ctl) {
-    AssertThrow(ctl.params.adaptive_timestep == "KristensenCLATimeStep",
+    AssertThrow(ctl.params.adaptive_timestep == "KristensenCLA",
                 ExcInternalError("KristensenCLATimeStep must be used "
                                  "with KristensenCLAAccumulation."));
     AssertThrow(
