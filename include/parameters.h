@@ -192,6 +192,7 @@ struct Material {
   double lame_coefficient_mu;
   double lame_coefficient_lambda;
   std::string plane_state;
+  std::string phasefield_model;
   std::string degradation;
   std::string fatigue_degradation;
   std::string fatigue_accumulation;
@@ -211,6 +212,8 @@ void Material::subsection_declare_parameters(ParameterHandler &prm) {
     prm.declare_entry("Phase field length scale", "0.01", Patterns::Double(0));
     prm.declare_entry("Plane state", "stress",
                       Patterns::Selection("stress|strain"));
+    prm.declare_entry("Phase field model", "AT2",
+                      Patterns::Selection("AT2|AT1"));
     prm.declare_entry("Degradation", "quadratic",
                       Patterns::Selection("quadratic|cubic"));
     prm.declare_entry(
@@ -234,6 +237,7 @@ void Material::subsection_parse_parameters(ParameterHandler &prm) {
     Gc = prm.get_double("Critical energy release rate");
     l_phi = prm.get_double("Phase field length scale");
     plane_state = prm.get("Plane state");
+    phasefield_model = prm.get("Phase field model");
     degradation = prm.get("Degradation");
     fatigue_degradation = prm.get("Fatigue degradation");
     fatigue_accumulation = prm.get("Fatigue accumulation");

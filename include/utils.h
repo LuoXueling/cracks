@@ -260,4 +260,5 @@ DebugConditionalOStream::operator<<(std::ostream &(*p)(std::ostream &)) const {
   return *this;
 }
 
+double Mbracket(double x) { return (x + std::abs(x)) / 2; }
 #endif

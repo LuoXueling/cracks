@@ -20,7 +20,6 @@ using namespace dealii;
 template <int dim> class PhaseField : public AbstractField<dim> {
 public:
   PhaseField(std::string update_scheme, Controller<dim> &ctl);
-
   void assemble_newton_system(bool residual_only, LA::MPI::Vector &neumann_rhs,
                               Controller<dim> &ctl) override;
   void assemble_linear_system(Controller<dim> &ctl) override;
@@ -93,17 +92,33 @@ void PhaseField<dim>::assemble_linear_system(Controller<dim> &ctl) {
 
         for (unsigned int i = 0; i < dofs_per_cell; ++i) {
           for (unsigned int j = 0; j < dofs_per_cell; ++j) {
-            {
+            if (ctl.params.phasefield_model == "AT1") {
+              cell_matrix(i, j) += (Nphi_kq[i] * Nphi_kq[j] * 2 * H +
+                                    Bphi_kq[i] * Bphi_kq[j] * ctl.params.Gc *
+                                        ctl.params.l_phi * 0.75) *
+                                   fe_values.JxW(q);
+            } else if (ctl.params.phasefield_model == "AT2") {
               cell_matrix(i, j) +=
                   (Nphi_kq[i] * Nphi_kq[j] * 2 * H +
                    Bphi_kq[i] * Bphi_kq[j] * ctl.params.Gc * ctl.params.l_phi +
                    Nphi_kq[i] * Nphi_kq[j] * ctl.params.Gc / ctl.params.l_phi) *
                   fe_values.JxW(q);
+            } else {
+              AssertThrow(
+                  false, ExcNotImplemented("Phase field model not available."));
             }
           }
-
-          cell_rhs(i) +=
-              (Nphi_kq[i] * (2 * H + std::abs(2 * H)) / 2) * fe_values.JxW(q);
+          if (ctl.params.phasefield_model == "AT1") {
+            cell_rhs(i) += (Nphi_kq[i] * Mbracket(-3.0 / 8 * ctl.params.Gc /
+                                                      ctl.params.l_phi +
+                                                  2 * H)) *
+                           fe_values.JxW(q);
+          } else if (ctl.params.phasefield_model == "AT2") {
+            cell_rhs(i) += (Nphi_kq[i] * Mbracket(2 * H)) * fe_values.JxW(q);
+          } else {
+            AssertThrow(false,
+                        ExcNotImplemented("Phase field model not available."));
+          }
 
           lqph[q]->update("Phase field", old_phasefield_values[q]);
         }
@@ -184,6 +199,23 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
             degradation->derivative(old_phasefield_values[q], ctl);
         double degrade_second_derivative =
             degradation->second_derivative(old_phasefield_values[q], ctl);
+        double cw, w, w_derivative;
+        if (ctl.params.phasefield_model == "AT1") {
+          AssertThrow(
+              false,
+              ExcInternalError(
+                  "AT1 model does not work when using Newton variations. "))
+          // cw = 2.0 / 3.0;
+          // w = 1;
+          // w_derivative = 0;
+        } else if (ctl.params.phasefield_model == "AT2") {
+          cw = 0.5;
+          w = 2 * old_phasefield_values[q];
+          w_derivative = 2;
+        } else {
+          AssertThrow(false,
+                      ExcNotImplemented("Phase field model not available."));
+        }
 
         double fatigue_degrade, fatigue_degrade_derivative;
         Tensor<1, dim> fatigue_degrade_grad;
@@ -203,30 +235,24 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
             for (unsigned int j = 0; j < dofs_per_cell; ++j) {
               {
                 cell_matrix(i, j) +=
-                    (ctl.params.Gc * fatigue_degrade * ctl.params.l_phi *
-                         Bphi_kq[i] * Bphi_kq[j] +
+                    (ctl.params.Gc / (2 * cw) * fatigue_degrade *
+                         ctl.params.l_phi * Bphi_kq[i] * Bphi_kq[j] +
                      Nphi_kq[i] * Nphi_kq[j] *
                          (degrade_second_derivative * H +
-                          ctl.params.Gc * fatigue_degrade / ctl.params.l_phi)) *
+                          ctl.params.Gc / (2 * cw) * fatigue_degrade /
+                              (2 * ctl.params.l_phi) * w_derivative)) *
                     fe_values.JxW(q);
               }
             }
           }
 
-          cell_rhs(i) +=
-              (degrade_derivative * H * Nphi_kq[i] +
-               ctl.params.Gc * (fatigue_degrade * ctl.params.l_phi *
-                                    old_phasefield_grads[q] * Bphi_kq[i] +
-                                fatigue_degrade / ctl.params.l_phi *
-                                    old_phasefield_values[q] * Nphi_kq[i])) *
-              fe_values.JxW(q);
-          //          if (ctl.params.enable_fatigue) {
-          //            cell_rhs(i) += -ctl.params.Gc *
-          //                           (fatigue_degrade_grad * ctl.params.l_phi
-          //                           *
-          //                            old_phasefield_grads[q] * Nphi_kq[i]) *
-          //                           fe_values.JxW(q);
-          //          }
+          cell_rhs(i) += (degrade_derivative * H * Nphi_kq[i] +
+                          ctl.params.Gc / (2 * cw) *
+                              (fatigue_degrade * ctl.params.l_phi *
+                                   old_phasefield_grads[q] * Bphi_kq[i] +
+                               fatigue_degrade / (2 * ctl.params.l_phi) * w *
+                                   Nphi_kq[i])) *
+                         fe_values.JxW(q);
 
           lqph[q]->update("Phase field", old_phasefield_values[q]);
         }

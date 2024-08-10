@@ -34,7 +34,7 @@ public:
     NewtonInformation<dim> dummy_info;
     dummy_info.system_matrix_rebuilt =
         true; // Refactorization at every timestep for now.
-    solve(dummy_info, ctl);
+    return solve(dummy_info, ctl);
   };
   virtual void output_results(DataOut<dim> &data_out, Controller<dim> &ctl) {
     AssertThrow(false, ExcNotImplemented());
@@ -348,7 +348,7 @@ double AbstractField<dim>::update_linear_system(Controller<dim> &ctl) {
   assemble_linear_system(ctl);
 
   ctl.debug_dcout << "Solve linear system - solve" << std::endl;
-  solve(ctl);
+  double dummy = solve(ctl);
   ctl.debug_dcout << "Solve linear system - constraints" << std::endl;
   distributed_solution = system_solution;
   distribute_all_constraints(distributed_solution, ctl);
