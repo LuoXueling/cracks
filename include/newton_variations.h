@@ -27,6 +27,10 @@ template <int dim> class NewtonVariation {
 public:
   NewtonVariation(Controller<dim> &ctl){};
 
+  virtual bool allow_skip_first_iteration(NewtonInformation<dim> &info,
+                                          Controller<dim> &ctl) {
+    return true;
+  };
   virtual bool quit_newton(NewtonInformation<dim> &info, Controller<dim> &ctl) {
     return info.residual <= ctl.params.lower_bound_newton_residual;
   };

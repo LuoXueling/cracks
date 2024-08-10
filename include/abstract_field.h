@@ -390,9 +390,13 @@ double AbstractField<dim>::update_newton_system(Controller<dim> &ctl) {
 
   ctl.dcout << "0\t" << std::scientific << newton_info.residual << std::endl;
 
-  while (newton_info.residual > ctl.params.lower_bound_newton_residual &&
-         newton_info.i_step < ctl.params.max_no_newton_steps) {
-    if (newton_ctl->quit_newton(newton_info, ctl)) {
+  while ((newton_info.residual > ctl.params.lower_bound_newton_residual &&
+          newton_info.i_step < ctl.params.max_no_newton_steps) ||
+         (newton_info.i_step == 1 &&
+          !newton_ctl->allow_skip_first_iteration(newton_info, ctl))) {
+    if (newton_ctl->quit_newton(newton_info, ctl) &&
+        !(newton_info.i_step == 1 &&
+          !newton_ctl->allow_skip_first_iteration(newton_info, ctl))) {
       ctl.dcout << '\t' << std::scientific << newton_info.residual << std::endl;
       break;
     }
