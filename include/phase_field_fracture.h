@@ -27,6 +27,8 @@ private:
   void record_old_solution() override;
   void return_old_solution() override;
   double staggered_scheme() override;
+  double solve_phase_field_subproblem();
+  double solve_elasticity_subproblem();
   void respective_output_results(DataOut<dim> &data_out) override;
 
   Elasticity<dim> elasticity;
@@ -66,39 +68,46 @@ template <int dim> void PhaseFieldFracture<dim>::return_old_solution() {
   }
 }
 
+template <int dim> double PhaseFieldFracture<dim>::solve_phase_field_subproblem() {
+  (this->ctl).dcout << "Staggered scheme - Solving phase field" << std::endl;
+  (this->ctl).computing_timer.enter_subsection("Solve phase field");
+  double newton_reduction_phasefield = phasefield.update(this->ctl);
+  (this->ctl).debug_dcout
+      << "Staggered scheme - Solving phase field - point_history"
+      << std::endl;
+  (this->ctl).finalize_point_history();
+  (this->ctl).debug_dcout
+      << "Staggered scheme - Solving phase field - phase field limitation"
+      << std::endl;
+  phasefield.enforce_phase_field_limitation(this->ctl);
+  (this->ctl).computing_timer.leave_subsection("Solve phase field");
+  return newton_reduction_phasefield;
+}
+
+template <int dim> double PhaseFieldFracture<dim>::solve_elasticity_subproblem() {
+  (this->ctl).dcout
+      << "Solve Newton system - staggered scheme - Solving elasticity"
+      << std::endl;
+  (this->ctl).computing_timer.enter_subsection("Solve elasticity");
+  double newton_reduction_elasticity = elasticity.update(this->ctl);
+  (this->ctl).finalize_point_history();
+  (this->ctl).computing_timer.leave_subsection("Solve elasticity");
+  return newton_reduction_elasticity;
+}
+
 template <int dim> double PhaseFieldFracture<dim>::staggered_scheme() {
   if ((this->ctl).params.enable_phase_field) {
-    (this->ctl).dcout << "Staggered scheme - Solving phase field" << std::endl;
-    (this->ctl).computing_timer.enter_subsection("Solve phase field");
-    double newton_reduction_phasefield = phasefield.update(this->ctl);
-    (this->ctl).debug_dcout
-        << "Staggered scheme - Solving phase field - point_history"
-        << std::endl;
-    (this->ctl).finalize_point_history();
-    (this->ctl).debug_dcout
-        << "Staggered scheme - Solving phase field - phase field limitation"
-        << std::endl;
-    phasefield.enforce_phase_field_limitation(this->ctl);
-    (this->ctl).computing_timer.leave_subsection("Solve phase field");
-
-    (this->ctl).dcout << "Staggered scheme - Solving elasticity" << std::endl;
-    (this->ctl).computing_timer.enter_subsection("Solve elasticity");
-    double newton_reduction_elasticity = elasticity.update(this->ctl);
-    (this->ctl).debug_dcout
-        << "Staggered scheme - Solving elasticity - point_history" << std::endl;
-    (this->ctl).finalize_point_history();
-    (this->ctl).computing_timer.leave_subsection("Solve elasticity");
-
+    double newton_reduction_elasticity = 0, newton_reduction_phasefield = 0;
+    if (!((this->ctl).params.phasefield_model == "AT1" && (this->ctl).params.phase_field_scheme == "newton")){
+      newton_reduction_phasefield = solve_phase_field_subproblem();
+      newton_reduction_elasticity = solve_elasticity_subproblem();
+    } else{
+      newton_reduction_elasticity = solve_elasticity_subproblem();
+      newton_reduction_phasefield = solve_phase_field_subproblem();
+    }
     return std::max(newton_reduction_elasticity, newton_reduction_phasefield);
   } else {
-    (this->ctl).dcout
-        << "Solve Newton system - staggered scheme - Solving elasticity"
-        << std::endl;
-    (this->ctl).computing_timer.enter_subsection("Solve elasticity");
-    double newton_reduction_elasticity = elasticity.update(this->ctl);
-    (this->ctl).finalize_point_history();
-    (this->ctl).computing_timer.leave_subsection("Solve elasticity");
-    return newton_reduction_elasticity;
+    return solve_elasticity_subproblem();
   }
 }
 
