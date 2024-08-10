@@ -194,14 +194,7 @@ void Elasticity<dim>::assemble_newton_system(bool residual_only,
         }
 
         // Update history
-        lqph[q]->update(
-            "Driving force",
-            std::max(energy_positive,
-                     (ctl.params.phasefield_model == "AT1" &&
-                      ctl.params.phase_field_scheme == "newton")
-                         ? (3.0 * ctl.params.Gc / (16.0 * ctl.params.l_phi))
-                         : 0.0),
-            "max");
+        lqph[q]->update("Driving force", energy_positive, "max");
         lqph[q]->update("Positive elastic energy", energy_positive);
       }
 

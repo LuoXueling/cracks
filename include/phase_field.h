@@ -83,6 +83,9 @@ void PhaseField<dim>::assemble_linear_system(Controller<dim> &ctl) {
           ctl.quadrature_point_history.get_data(cell);
       for (unsigned int q = 0; q < n_q_points; ++q) {
         double H = lqph[q]->get("Driving force", 0.0);
+        if (ctl.params.phasefield_model == "AT1") {
+          H = std::max(H, 3.0 * ctl.params.Gc / (16.0 * ctl.params.l_phi));
+        }
 
         // Values of fields and their derivatives
         for (unsigned int k = 0; k < dofs_per_cell; ++k) {
@@ -201,9 +204,9 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
             degradation->second_derivative(old_phasefield_values[q], ctl);
         double cw, w, w_derivative;
         if (ctl.params.phasefield_model == "AT1") {
-           cw = 2.0 / 3.0;
-           w = 1;
-           w_derivative = 0;
+          cw = 2.0 / 3.0;
+          w = 1;
+          w_derivative = 0;
         } else if (ctl.params.phasefield_model == "AT2") {
           cw = 0.5;
           w = 2 * old_phasefield_values[q];
