@@ -26,7 +26,7 @@ public:
 
 private:
   virtual void setup_system() { AssertThrow(false, ExcNotImplemented()); };
-  virtual void refine_grid() { AssertThrow(false, ExcNotImplemented()); };
+  virtual bool refine_grid() { AssertThrow(false, ExcNotImplemented()); };
   virtual void record_old_solution() {
     AssertThrow(false, ExcNotImplemented());
   };
@@ -146,7 +146,8 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
       ctl.dcout << "Refining mesh" << std::endl;
       ctl.timer.enter_subsection("Refine grid");
       ctl.computing_timer.enter_subsection("Refine grid");
-      refine_grid();
+      bool refined = refine_grid();
+      if (refined) ctl.last_refinement_timestep_number = ctl.timestep_number;
       ctl.timer.leave_subsection();
       ctl.computing_timer.leave_subsection("Refine grid");
     }

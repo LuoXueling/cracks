@@ -79,7 +79,7 @@ template <int dim>
 class KristensenModifiedNewton : public NewtonVariation<dim> {
 public:
   KristensenModifiedNewton(Controller<dim> &ctl)
-      : NewtonVariation<dim>(ctl), record_c(0), record_i(0) {
+      : NewtonVariation<dim>(ctl), record_c(0), record_i(0), ever_built(false) {
     AssertThrow(ctl.params.linesearch_parameters != "",
                 ExcInternalError("No parameters assigned to modified newton."));
     std::istringstream iss(ctl.params.modified_newton_parameters);
@@ -94,13 +94,17 @@ public:
 
   bool rebuild_jacobian(NewtonInformation<dim> &info,
                         Controller<dim> &ctl) override {
-    if (ctl.timestep_number == 0 || record_i > n_i ||
+    if (!ever_built || (record_c <= ctl.last_refinement_timestep_number) ||
+        ctl.timestep_number == 0 || record_i > n_i ||
         (ctl.timestep_number - record_c) > n_c) {
       record_i = 0;
       record_c = ctl.timestep_number;
+      ever_built = true;
+      ctl.debug_dcout << "Allow rebuilding system matrix" << std::endl;
       return true;
     } else {
       record_i++;
+      ctl.debug_dcout << "Forbid rebuilding system matrix" << std::endl;
       return false;
     };
   };
@@ -110,7 +114,8 @@ public:
   double n_c; // A number of load increments n_c have passed without updating
               // the stiffness matrices.
   unsigned int record_i;
-  unsigned int record_c;
+  int record_c;
+  bool ever_built;
 };
 
 template <int dim> class LineSearch : public NewtonVariation<dim> {

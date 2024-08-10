@@ -23,7 +23,7 @@ public:
 
 private:
   void setup_system() override;
-  void refine_grid() override;
+  bool refine_grid() override;
   void record_old_solution() override;
   void return_old_solution() override;
   double staggered_scheme() override;
@@ -113,7 +113,7 @@ void PhaseFieldFracture<dim>::respective_output_results(
   }
 }
 
-template <int dim> void PhaseFieldFracture<dim>::refine_grid() {
+template <int dim> bool PhaseFieldFracture<dim>::refine_grid() {
   typename DoFHandler<dim>::active_cell_iterator
       cell = phasefield.dof_handler.begin_active(),
       endc = phasefield.dof_handler.end();
@@ -154,6 +154,7 @@ template <int dim> void PhaseFieldFracture<dim>::refine_grid() {
       Utilities::MPI::sum(will_refine, (this->ctl).mpi_com);
   if (!static_cast<bool>(will_refine_global)) {
     (this->ctl).dcout << "No cell to refine" << std::endl;
+    return false;
   } else {
     (this->ctl).debug_dcout << "Refine - prepare" << std::endl;
     // Prepare transferring of point history
@@ -186,6 +187,7 @@ template <int dim> void PhaseFieldFracture<dim>::refine_grid() {
     elasticity.post_refine(soltrans_elasticity, this->ctl);
     phasefield.post_refine(soltrans_phasefield, this->ctl);
     (this->ctl).debug_dcout << "Refine - done" << std::endl;
+    return true;
   }
 }
 
