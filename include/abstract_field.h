@@ -25,9 +25,11 @@ public:
     AssertThrow(false, ExcNotImplemented())
   };
   virtual unsigned int solve(NewtonInformation<dim> &info,
-                             Controller<dim> &ctl) {
-    AssertThrow(false, ExcNotImplemented())
-  };
+                             Controller<dim> &ctl);
+  virtual unsigned int solve_linear_system(
+      NewtonInformation<dim> &info, Controller<dim> &ctl,
+      SolverControl &solver_control,
+      LA::MPI::PreconditionAMG::AdditionalData &additional_data);
   unsigned int solve(Controller<dim> &ctl) {
     NewtonInformation<dim> dummy_info;
     dummy_info.system_matrix_rebuilt =
@@ -35,7 +37,7 @@ public:
     solve(dummy_info, ctl);
   };
   virtual void output_results(DataOut<dim> &data_out, Controller<dim> &ctl) {
-    AssertThrow(false, ExcNotImplemented())
+    AssertThrow(false, ExcNotImplemented());
   };
   virtual void define_boundary_condition(std::string boundary_from,
                                          Controller<dim> &ctl);
@@ -495,6 +497,66 @@ double AbstractField<dim>::update_newton_system(Controller<dim> &ctl) {
 
   solution = distributed_solution;
   return newton_info.residual / newton_info.old_residual;
+}
+
+template <int dim>
+unsigned int AbstractField<dim>::solve(NewtonInformation<dim> &info,
+                                       Controller<dim> &ctl) {
+  SolverControl solver_control((this->dof_handler).n_dofs(),
+                               1e-8 * this->system_rhs.l2_norm());
+  LA::MPI::PreconditionAMG::AdditionalData data;
+  data.constant_modes = (this->constant_modes);
+  data.elliptic = true;
+  data.higher_order_elements = true;
+  data.smoother_sweeps = 2;
+  data.aggregation_threshold = 0.02;
+  return AbstractField<dim>::solve_linear_system(info, ctl, solver_control,
+                                                 data);
+}
+
+template <int dim>
+unsigned int AbstractField<dim>::solve_linear_system(
+    NewtonInformation<dim> &info, Controller<dim> &ctl,
+    SolverControl &solver_control,
+    LA::MPI::PreconditionAMG::AdditionalData &additional_data) {
+  if (ctl.params.direct_solver) {
+    if (info.system_matrix_rebuilt) {
+      ctl.debug_dcout
+          << "Solve Newton system - Newton iteration - solve linear "
+             "system - factorization"
+          << std::endl;
+      ctl.timer.enter_subsection("Factorization");
+      ctl.computing_timer.enter_subsection("Factorization");
+      this->direct_solver.initialize(this->system_matrix);
+      ctl.computing_timer.leave_subsection("Factorization");
+      ctl.timer.leave_subsection("Factorization");
+    }
+    ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear "
+                       "system - solve LUx=b"
+                    << std::endl;
+    ctl.timer.enter_subsection("Solve LUx=b");
+    ctl.computing_timer.enter_subsection("Solve LUx=b");
+    this->direct_solver.solve(this->system_solution, this->system_rhs);
+    ctl.computing_timer.leave_subsection("Solve LUx=b");
+    ctl.timer.leave_subsection("Solve LUx=b");
+    return 1;
+  } else {
+    ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear "
+                       "system - preconditioner"
+                    << std::endl;
+    SolverGMRES<LA::MPI::Vector> solver(solver_control);
+    (this->preconditioner).initialize(this->system_matrix, additional_data);
+    ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear "
+                       "system - solve"
+                    << std::endl;
+    solver.solve(this->system_matrix, this->system_solution, this->system_rhs,
+                 (this->preconditioner));
+    ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear "
+                       "system - solve complete"
+                    << std::endl;
+
+    return solver_control.last_step();
+  }
 }
 
 template <int dim>

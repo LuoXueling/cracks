@@ -25,8 +25,6 @@ public:
 
   void assemble_newton_system(bool residual_only, LA::MPI::Vector &neumann_rhs,
                               Controller<dim> &ctl) override;
-  unsigned int solve(NewtonInformation<dim> &info,
-                     Controller<dim> &ctl) override;
   void output_results(DataOut<dim> &data_out, Controller<dim> &ctl) override;
 
   void compute_load(Controller<dim> &ctl);
@@ -44,8 +42,8 @@ Elasticity<dim>::Elasticity(const unsigned int n_components,
     : AbstractField<dim>(n_components, boundary_from, update_scheme, ctl),
       constitutive_law(ctl.params.E, ctl.params.v, ctl.params.plane_state),
       stress(constitutive_law) {
-  this->newton_ctl =
-      select_newton_variation<dim>(ctl.params.adjustment_method_elasticity, ctl);
+  this->newton_ctl = select_newton_variation<dim>(
+      ctl.params.adjustment_method_elasticity, ctl);
 }
 
 template <int dim>
@@ -217,48 +215,6 @@ void Elasticity<dim>::assemble_newton_system(bool residual_only,
 
   (this->system_matrix).compress(VectorOperation::add);
   (this->system_rhs).compress(VectorOperation::add);
-}
-
-template <int dim>
-unsigned int Elasticity<dim>::solve(NewtonInformation<dim> &info,
-                                    Controller<dim> &ctl) {
-  if (ctl.params.direct_solver) {
-    if (info.system_matrix_rebuilt) {
-      ctl.timer.enter_subsection("Factorization");
-      this->direct_solver.initialize(this->system_matrix);
-      ctl.timer.leave_subsection("Factorization");
-    }
-    ctl.timer.enter_subsection("Solve LUx=b");
-    this->direct_solver.solve(this->system_solution, this->system_rhs);
-    ctl.timer.leave_subsection("Solve LUx=b");
-    return 1;
-  } else {
-    SolverControl solver_control((this->dof_handler).n_dofs(),
-                                 1e-8 * this->system_rhs.l2_norm());
-    ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear "
-                       "system - preconditioner"
-                    << std::endl;
-    SolverGMRES<LA::MPI::Vector> solver(solver_control);
-    {
-      LA::MPI::PreconditionAMG::AdditionalData data;
-      data.constant_modes = (this->constant_modes);
-      data.elliptic = true;
-      data.higher_order_elements = true;
-      data.smoother_sweeps = 2;
-      data.aggregation_threshold = 0.02;
-      (this->preconditioner).initialize(this->system_matrix, data);
-    }
-    ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear "
-                       "system - solve"
-                    << std::endl;
-    solver.solve(this->system_matrix, this->system_solution, this->system_rhs,
-                 (this->preconditioner));
-    ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear "
-                       "system - solve complete"
-                    << std::endl;
-
-    return solver_control.last_step();
-  }
 }
 
 template <int dim> class StressProcessor : public CellProcessor<dim> {
