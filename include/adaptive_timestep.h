@@ -79,6 +79,11 @@ public:
                                  "reaching a quarter of a cycle."));
     n_cycles_per_vtk = static_cast<int>(ctl.params.save_vtk_per_step /
                                         (T / ctl.params.timestep_size_2));
+    if (ctl.params.lower_bound_newton_residual > 1e-10) {
+      ctl.params.lower_bound_newton_residual = 1e-10;
+      ctl.dcout << "KristensenCLA is forcing newton iteration tolerance to "
+                << ctl.params.lower_bound_newton_residual << std::endl;
+    }
   }
   void initialize_timestep(Controller<dim> &ctl) {
     ctl.dcout << "KristensenCLATimeStep using parameter: R=" << R << ", f=" << f
