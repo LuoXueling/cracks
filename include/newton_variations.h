@@ -102,7 +102,8 @@ public:
     if (info.i_step == 1) {
       record_i = 0;
     }
-    if (!ever_built || (record_c <= ctl.last_refinement_timestep_number) ||
+    if (!ever_built ||
+        (record_c <= ctl.last_refinement_timestep_number && info.i_step) ||
         ctl.timestep_number == 0 || record_i > n_i ||
         (ctl.timestep_number - record_c) > n_c) {
       record_i = 0;
