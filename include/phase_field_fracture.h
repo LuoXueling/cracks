@@ -68,13 +68,13 @@ template <int dim> void PhaseFieldFracture<dim>::return_old_solution() {
   }
 }
 
-template <int dim> double PhaseFieldFracture<dim>::solve_phase_field_subproblem() {
+template <int dim>
+double PhaseFieldFracture<dim>::solve_phase_field_subproblem() {
   (this->ctl).dcout << "Staggered scheme - Solving phase field" << std::endl;
   (this->ctl).computing_timer.enter_subsection("Solve phase field");
   double newton_reduction_phasefield = phasefield.update(this->ctl);
   (this->ctl).debug_dcout
-      << "Staggered scheme - Solving phase field - point_history"
-      << std::endl;
+      << "Staggered scheme - Solving phase field - point_history" << std::endl;
   (this->ctl).finalize_point_history();
   (this->ctl).debug_dcout
       << "Staggered scheme - Solving phase field - phase field limitation"
@@ -84,7 +84,8 @@ template <int dim> double PhaseFieldFracture<dim>::solve_phase_field_subproblem(
   return newton_reduction_phasefield;
 }
 
-template <int dim> double PhaseFieldFracture<dim>::solve_elasticity_subproblem() {
+template <int dim>
+double PhaseFieldFracture<dim>::solve_elasticity_subproblem() {
   (this->ctl).dcout
       << "Solve Newton system - staggered scheme - Solving elasticity"
       << std::endl;
@@ -98,13 +99,8 @@ template <int dim> double PhaseFieldFracture<dim>::solve_elasticity_subproblem()
 template <int dim> double PhaseFieldFracture<dim>::staggered_scheme() {
   if ((this->ctl).params.enable_phase_field) {
     double newton_reduction_elasticity = 0, newton_reduction_phasefield = 0;
-    if (!((this->ctl).params.phasefield_model == "AT1" && (this->ctl).params.phase_field_scheme == "newton")){
-      newton_reduction_phasefield = solve_phase_field_subproblem();
-      newton_reduction_elasticity = solve_elasticity_subproblem();
-    } else{
-      newton_reduction_elasticity = solve_elasticity_subproblem();
-      newton_reduction_phasefield = solve_phase_field_subproblem();
-    }
+    newton_reduction_elasticity = solve_elasticity_subproblem();
+    newton_reduction_phasefield = solve_phase_field_subproblem();
     return std::max(newton_reduction_elasticity, newton_reduction_phasefield);
   } else {
     return solve_elasticity_subproblem();
