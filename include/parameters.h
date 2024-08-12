@@ -94,7 +94,8 @@ void Runtime::subsection_declare_parameters(ParameterHandler &prm) {
 
     prm.declare_entry(
         "Adaptive timestep", "exponential",
-        Patterns::Selection("exponential|constant|KristensenCLA"));
+        Patterns::Selection(
+            "exponential|constant|KristensenCLA|CojocaruCycleJump"));
     prm.declare_entry("Adaptive timestep parameters", "", Patterns::Anything());
     prm.declare_entry("Timestep size", "1.0", Patterns::Double(0));
 
@@ -115,8 +116,7 @@ void Runtime::subsection_declare_parameters(ParameterHandler &prm) {
 
     prm.declare_entry(
         "Adjustment method for elasticity", "linesearch",
-        Patterns::Selection(
-            "none|linesearch|KristensenModifiedNewton"));
+        Patterns::Selection("none|linesearch|KristensenModifiedNewton"));
 
     prm.declare_entry("Parameters of line search", "0.1", Patterns::Anything());
     prm.declare_entry("Parameters of modified newton", "",
@@ -192,6 +192,7 @@ struct Material {
   std::string phasefield_model;
   std::string degradation;
   std::string fatigue_degradation;
+  std::string fatigue_degradation_parameters;
   std::string fatigue_accumulation;
   std::string fatigue_accumulation_parameters;
 
@@ -215,11 +216,14 @@ void Material::subsection_declare_parameters(ParameterHandler &prm) {
                       Patterns::Selection("quadratic|cubic"));
     prm.declare_entry(
         "Fatigue degradation", "CarraraAsymptotic",
-        Patterns::Selection("CarraraAsymptotic|KristensenAsymptotic"));
+        Patterns::Selection(
+            "CarraraAsymptotic|KristensenAsymptotic|CojocaruAsymptotic"));
+    prm.declare_entry("Fatigue degradation parameters", "",
+                      Patterns::Anything());
     prm.declare_entry(
         "Fatigue accumulation", "CarraraNoMeanEffect",
-        Patterns::Selection(
-            "CarraraNoMeanEffect|CarraraMeanEffect|Kristensen|KristensenCLA"));
+        Patterns::Selection("CarraraNoMeanEffect|CarraraMeanEffect|Kristensen|"
+                            "KristensenCLA|CojocaruCLA"));
     prm.declare_entry("Fatigue accumulation parameters", "",
                       Patterns::Anything());
   }
@@ -237,6 +241,7 @@ void Material::subsection_parse_parameters(ParameterHandler &prm) {
     phasefield_model = prm.get("Phase field model");
     degradation = prm.get("Degradation");
     fatigue_degradation = prm.get("Fatigue degradation");
+    fatigue_degradation_parameters = prm.get("Fatigue degradation parameters");
     fatigue_accumulation = prm.get("Fatigue accumulation");
     fatigue_accumulation_parameters =
         prm.get("Fatigue accumulation parameters");

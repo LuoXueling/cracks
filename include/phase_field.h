@@ -229,6 +229,11 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
           fatigue_degrade_derivative = 0.0;
         }
 
+        if (ctl.params.phasefield_model == "AT1") {
+          H = std::max(H, 3.0 * ctl.params.Gc / (16.0 * ctl.params.l_phi) *
+                              fatigue_degrade);
+        }
+
         for (unsigned int i = 0; i < dofs_per_cell; ++i) {
           if (!residual_only) {
             for (unsigned int j = 0; j < dofs_per_cell; ++j) {

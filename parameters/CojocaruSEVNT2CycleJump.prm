@@ -13,8 +13,8 @@ end
 
 subsection Runtime
   # Time step
-  set Adaptive timestep = KristensenCLA
-  set Adaptive timestep parameters = 0 1
+  set Adaptive timestep = CojocaruCycleJump
+  set Adaptive timestep parameters = 0 1 100
   set Max No of timesteps = 12000
   set Timestep size = 0.25
   set Timestep size to switch to = 0.5
@@ -58,7 +58,7 @@ subsection Material
     set Fatigue degradation = CojocaruAsymptotic
     set Fatigue degradation parameters = 10.0
     set Fatigue accumulation = CojocaruCLA
-    set Fatigue accumulation parameters = 0 10 275.0 0.0
+    set Fatigue accumulation parameters = 0 10 275.0 15.0
 end
 
 subsection Finite element system
