@@ -100,43 +100,52 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
     double tmp_current_timestep = ctl.current_timestep;
     ctl.old_timestep = ctl.current_timestep;
 
-    ctl.dcout << std::endl;
     ctl.dcout << "\n=============================="
               << "===========================================" << std::endl;
-    ctl.dcout << "Time " << ctl.timestep_number << ": " << ctl.time << " ("
-              << ctl.current_timestep << ")" << "   "
+
+    double current_timestep = time_stepping->current_timestep(ctl);
+    ctl.time += current_timestep;
+
+    ctl.dcout << "Time (No." << ctl.timestep_number << "): " << ctl.time
+              << " (Step: " << current_timestep << ")"
+              << " Output: " << ctl.output_timestep_number << " "
               << "Cells: " << ctl.triangulation.n_global_active_cells();
     ctl.dcout << "\n--------------------------------"
               << "-----------------------------------------" << std::endl;
     ctl.dcout << std::endl;
 
-    ctl.time += ctl.current_timestep;
-
-    do {
-      // The Newton method can either stagnate or the linear solver
-      // might not converge. To not abort the program we catch the
-      // exception and retry with a smaller step.
-      ctl.debug_dcout << "Solve Newton system - enter loop" << std::endl;
-      record_old_solution();
-      try {
-        ctl.debug_dcout << "Solve Newton system - staggered scheme"
-                        << std::endl;
-        newton_reduction = staggered_scheme();
-        while (newton_reduction > ctl.params.upper_newton_rho) {
-          time_stepping->execute(ctl);
-          return_old_solution();
+    try{
+      do {
+        // The Newton method can either stagnate or the linear solver
+        // might not converge. To not abort the program we catch the
+        // exception and retry with a smaller step.
+        ctl.debug_dcout << "Solve Newton system - enter loop" << std::endl;
+        record_old_solution();
+        try {
+          ctl.debug_dcout << "Solve Newton system - staggered scheme"
+                          << std::endl;
           newton_reduction = staggered_scheme();
+          while (newton_reduction > ctl.params.upper_newton_rho) {
+            time_stepping->execute_when_fail(ctl);
+            return_old_solution();
+            newton_reduction = staggered_scheme();
+          }
+
+          break;
+
+        } catch (SolverControl::NoConvergence &e) {
+          ctl.dcout << "Solver did not converge! Adjusting time step."
+                    << std::endl;
+          time_stepping->execute_when_fail(ctl);
+          return_old_solution();
         }
-
-        break;
-
-      } catch (SolverControl::NoConvergence &e) {
-        ctl.dcout << "Solver did not converge! Adjusting time step."
-                  << std::endl;
-        time_stepping->execute(ctl);
-        return_old_solution();
-      }
-    } while (true);
+      } while (true);
+    }
+    catch (const std::runtime_error& e)
+    {
+      ctl.dcout << "Failed to solve: " << e.what() << std::endl;
+      break;
+    }
 
     // Recover time step
     ctl.current_timestep = tmp_current_timestep;
@@ -147,7 +156,8 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
       ctl.timer.enter_subsection("Refine grid");
       ctl.computing_timer.enter_subsection("Refine grid");
       bool refined = refine_grid();
-      if (refined) ctl.last_refinement_timestep_number = ctl.timestep_number;
+      if (refined)
+        ctl.last_refinement_timestep_number = ctl.timestep_number;
       ctl.timer.leave_subsection();
       ctl.computing_timer.leave_subsection("Refine grid");
     }
@@ -162,11 +172,13 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
     }
     ctl.timer.enter_subsection("Solve Newton system");
     ++ctl.timestep_number;
+    ++ctl.output_timestep_number;
 
     ctl.computing_timer.print_summary();
     ctl.computing_timer.reset();
     ctl.dcout << std::endl;
-  } while (ctl.timestep_number <= ctl.params.max_no_timesteps);
+  } while (ctl.timestep_number <= ctl.params.max_no_timesteps &&
+           !time_stepping->terminate(ctl));
   ctl.timer.leave_subsection("Solve Newton system");
   ctl.timer.print_summary();
 }
@@ -242,6 +254,9 @@ template <int dim> void AbstractMultiphysics<dim>::output_results() {
   ctl.statistics.add_value("Step", ctl.timestep_number);
   ctl.statistics.set_precision("Step", 1);
   ctl.statistics.set_scientific("Step", false);
+  ctl.statistics.add_value("Step Out", ctl.output_timestep_number);
+  ctl.statistics.set_precision("Step Out", 1);
+  ctl.statistics.set_scientific("Step Out", false);
   ctl.statistics.add_value("Time", ctl.time);
   ctl.statistics.set_precision("Time", 8);
   ctl.statistics.set_scientific("Time", true);
@@ -252,7 +267,8 @@ template <int dim> void AbstractMultiphysics<dim>::output_results() {
   data_out.build_patches();
   ctl.debug_dcout << "Computing output - writing" << std::endl;
   data_out.write_vtu_with_pvtu_record(ctl.params.output_dir, "solution",
-                                      ctl.timestep_number, ctl.mpi_com, 2, 8);
+                                      ctl.output_timestep_number, ctl.mpi_com,
+                                      2, 8);
 
   ctl.debug_dcout << "Computing output - report statistics" << std::endl;
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0) {

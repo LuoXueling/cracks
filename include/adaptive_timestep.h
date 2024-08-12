@@ -15,17 +15,21 @@ public:
 
   virtual void initialize_timestep(Controller<dim> &ctl) {};
 
-  void execute(Controller<dim> &ctl) {
+  virtual double current_timestep(Controller<dim> &ctl) {
+    return ctl.current_timestep;
+  }
+
+  void execute_when_fail(Controller<dim> &ctl) {
     ctl.time -= ctl.current_timestep;
     check_time(ctl);
-    double new_timestep = get_new_timestep(ctl);
+    double new_timestep = get_new_timestep_when_fail(ctl);
     failure_criteria(new_timestep, ctl);
     ctl.current_timestep = new_timestep;
     record(ctl);
     ctl.time += ctl.current_timestep;
   }
 
-  virtual double get_new_timestep(Controller<dim> &ctl) {
+  virtual double get_new_timestep_when_fail(Controller<dim> &ctl) {
     return ctl.current_timestep * 0.1;
   }
 
@@ -44,6 +48,7 @@ public:
       AssertThrow(false, ExcInternalError("Step size too small"))
     }
   }
+  virtual bool terminate(Controller<dim> &ctl) { return false; }
 
   std::vector<double> historical_timesteps;
   double last_time;
@@ -54,19 +59,22 @@ template <int dim> class ConstantTimeStep : public AdaptiveTimeStep<dim> {
 public:
   ConstantTimeStep(Controller<dim> &ctl) : AdaptiveTimeStep<dim>(ctl){};
   void failure_criteria(double new_timestep, Controller<dim> &ctl) override {
-    AssertThrow(false,
-                ExcInternalError(
-                    "Staggered scheme does not converge, and ConstantTimeStep "
-                    "does not allow adaptive time stepping"));
+    throw std::runtime_error(
+        "Staggered scheme does not converge, and ConstantTimeStep "
+        "does not allow adaptive time stepping");
   }
 };
 
 template <int dim> class KristensenCLATimeStep : public ConstantTimeStep<dim> {
 public:
   KristensenCLATimeStep(Controller<dim> &ctl) : ConstantTimeStep<dim>(ctl) {
-    AssertThrow(ctl.params.fatigue_accumulation == "KristensenCLA",
-                ExcInternalError("KristensenCLATimeStep must be used "
-                                 "with KristensenCLAAccumulation."));
+    if (ctl.params.fatigue_accumulation != "KristensenCLA") {
+      ctl.dcout << "KristensenCLATimeStep is expected to used with "
+                   "KristensenCLAAccumulation, but it's not. Please make sure "
+                   "that the accumulation rule is consistent with constant "
+                   "amplitude accumulation."
+                << std::endl;
+    }
     AssertThrow(ctl.params.adaptive_timestep_parameters != "",
                 ExcInternalError(
                     "Parameters of KristensenCLATimeStep is not assigned."));
@@ -79,11 +87,6 @@ public:
                                  "reaching a quarter of a cycle."));
     n_cycles_per_vtk = static_cast<int>(ctl.params.save_vtk_per_step /
                                         (T / ctl.params.timestep_size_2));
-    if (ctl.params.lower_bound_newton_residual > 1e-10) {
-      ctl.params.lower_bound_newton_residual = 1e-10;
-      ctl.dcout << "KristensenCLA is forcing newton iteration tolerance to "
-                << ctl.params.lower_bound_newton_residual << std::endl;
-    }
   }
   void initialize_timestep(Controller<dim> &ctl) {
     ctl.dcout << "KristensenCLATimeStep using parameter: R=" << R << ", f=" << f

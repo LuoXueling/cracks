@@ -137,6 +137,7 @@ public:
 
   double time;
   unsigned int timestep_number;
+  unsigned int output_timestep_number;
   int last_refinement_timestep_number;
   double current_timestep;
   double old_timestep;
@@ -164,7 +165,8 @@ Controller<dim>::Controller(Parameters::AllParameters &prms)
             TimerOutput::cpu_and_wall_times),
       computing_timer(mpi_com, dcout, TimerOutput::never,
                       TimerOutput::wall_times),
-      time(0), timestep_number(0), current_timestep(0), old_timestep(0),
+      time(0), timestep_number(0), output_timestep_number(0),
+      current_timestep(0), old_timestep(0),
       last_refinement_timestep_number(-1) {
   statistics.set_auto_fill_mode(true);
 }

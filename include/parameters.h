@@ -62,7 +62,6 @@ void Project::subsection_parse_parameters(ParameterHandler &prm) {
 }
 
 struct Runtime {
-  unsigned int max_load_step;
   unsigned int max_no_timesteps;
   std::string adaptive_timestep;
   std::string adaptive_timestep_parameters;
@@ -91,7 +90,6 @@ struct Runtime {
 void Runtime::subsection_declare_parameters(ParameterHandler &prm) {
   prm.enter_subsection("Runtime");
   {
-    prm.declare_entry("Max load step", "10", Patterns::Integer(1));
     prm.declare_entry("Max No of timesteps", "1", Patterns::Integer(0));
 
     prm.declare_entry(
@@ -146,7 +144,6 @@ void Runtime::subsection_declare_parameters(ParameterHandler &prm) {
 void Runtime::subsection_parse_parameters(ParameterHandler &prm) {
   prm.enter_subsection("Runtime");
   {
-    max_load_step = prm.get_integer("Max load step");
     max_no_timesteps = prm.get_integer("Max No of timesteps");
     adaptive_timestep = prm.get("Adaptive timestep");
     adaptive_timestep_parameters = prm.get("Adaptive timestep parameters");
