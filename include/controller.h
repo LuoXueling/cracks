@@ -120,6 +120,8 @@ public:
 
   void finalize_point_history();
   void initialize_point_history();
+  double get_info(std::string name, double default_value);
+  void set_info(std::string name, double value);
 
   MPI_Comm mpi_com;
 
@@ -148,6 +150,8 @@ public:
 
   CellDataStorage<typename Triangulation<dim>::cell_iterator, PointHistory>
       quadrature_point_history, old_quadrature_point_history;
+
+  std::map<std::string, double> info_center;
 };
 
 template <int dim>
@@ -197,6 +201,24 @@ template <int dim> void Controller<dim>::finalize_point_history() {
         lqph[q]->finalize();
       }
     }
+}
+
+template <int dim>
+double Controller<dim>::get_info(std::string name, double default_value) {
+  try {
+    auto pos = info_center.find(name);
+    if (pos == info_center.end()) {
+      return default_value;
+    } else
+      return pos->second;
+  } catch (...) {
+    return default_value;
+  }
+};
+
+template <int dim>
+void Controller<dim>::set_info(std::string name, double value) {
+  info_center[name] = value;
 }
 
 #endif // CRACKS_CONTROLLER_H
