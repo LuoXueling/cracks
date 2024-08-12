@@ -51,8 +51,8 @@ template <int dim> void PhaseFieldFracture<dim>::setup_system() {
 }
 
 template <int dim> void PhaseFieldFracture<dim>::record_old_solution() {
-  (this->ctl).old_quadrature_point_history =
-      (this->ctl).quadrature_point_history;
+  (this->ctl).record_point_history((this->ctl).quadrature_point_history,
+                                   (this->ctl).old_quadrature_point_history);
   elasticity.record_old_solution(this->ctl);
   if ((this->ctl).params.enable_phase_field) {
     phasefield.record_old_solution(this->ctl);
@@ -60,8 +60,8 @@ template <int dim> void PhaseFieldFracture<dim>::record_old_solution() {
 }
 
 template <int dim> void PhaseFieldFracture<dim>::return_old_solution() {
-  (this->ctl).quadrature_point_history =
-      (this->ctl).old_quadrature_point_history;
+  (this->ctl).record_point_history((this->ctl).old_quadrature_point_history,
+                                   (this->ctl).quadrature_point_history);
   elasticity.return_old_solution(this->ctl);
   if ((this->ctl).params.enable_phase_field) {
     phasefield.return_old_solution(this->ctl);

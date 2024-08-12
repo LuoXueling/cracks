@@ -106,7 +106,6 @@ public:
     return names;
   }
 
-private:
   std::map<std::string, double> solution_dict_temp;
   std::map<std::string, double> solution_dict;
   std::map<std::string, double> solution_increment;
@@ -120,6 +119,11 @@ public:
 
   void finalize_point_history();
   void initialize_point_history();
+  void record_point_history(
+      CellDataStorage<typename Triangulation<dim>::cell_iterator, PointHistory>
+          &src,
+      CellDataStorage<typename Triangulation<dim>::cell_iterator, PointHistory>
+          &dst);
   double get_info(std::string name, double default_value);
   void set_info(std::string name, double value);
 
@@ -199,6 +203,27 @@ template <int dim> void Controller<dim>::finalize_point_history() {
           quadrature_point_history.get_data(cell);
       for (unsigned int q = 0; q < n_q_points; ++q) {
         lqph[q]->finalize();
+      }
+    }
+}
+
+template <int dim> void Controller<dim>::record_point_history(
+    CellDataStorage<typename Triangulation<dim>::cell_iterator, PointHistory>
+        &src,
+    CellDataStorage<typename Triangulation<dim>::cell_iterator, PointHistory>
+        &dst){
+  const unsigned int n_q_points = quadrature_formula.size();
+  for (const auto &cell : triangulation.active_cell_iterators())
+    if (cell->is_locally_owned()) {
+      const std::vector<std::shared_ptr<PointHistory>> lqph_src =
+          src.get_data(cell);
+      const std::vector<std::shared_ptr<PointHistory>> lqph_dst =
+          dst.get_data(cell);
+      for (unsigned int q = 0; q < n_q_points; ++q) {
+        lqph_dst[q]->solution_dict = lqph_src[q]->solution_dict;
+        lqph_dst[q]->solution_dict_temp = lqph_src[q]->solution_dict_temp;
+        lqph_dst[q]->solution_increment = lqph_src[q]->solution_increment;
+        lqph_dst[q]->finalize_scheme = lqph_src[q]->finalize_scheme;
       }
     }
 }
