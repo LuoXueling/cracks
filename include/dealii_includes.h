@@ -92,11 +92,9 @@ void split_by_block(const std::vector<types::global_dof_index> &dofs_per_block,
     start += dofs_per_block[i];
   }
 }
-} // namespace compatibility
 
-namespace compatibility {
 template <int dim> using ZeroFunction = dealii::Functions::ZeroFunction<dim>;
-}
+} // namespace compatibility
 
 // Ref. step-40
 namespace LA {

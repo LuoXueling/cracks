@@ -38,7 +38,7 @@ private:
 template <int dim>
 PhaseFieldFracture<dim>::PhaseFieldFracture(Parameters::AllParameters &prms)
     : AbstractMultiphysics<dim>(prms),
-      elasticity(dim, (this->ctl).params.boundary_from, "newton", this->ctl),
+      elasticity((this->ctl).params.boundary_from, "newton", this->ctl),
       phasefield(prms.phase_field_scheme, this->ctl) {}
 
 template <int dim> void PhaseFieldFracture<dim>::setup_system() {
@@ -142,7 +142,8 @@ template <int dim> bool PhaseFieldFracture<dim>::refine_grid() {
         continue;
       }
       fe_values.reinit(cell);
-      fe_values.get_function_gradients((phasefield.solution), phasefield_grads);
+      fe_values[phasefield.fields.extractors_scalar["phasefield"]]
+          .get_function_gradients((phasefield.solution), phasefield_grads);
       double max_grad = 0;
       for (unsigned int q = 0; q < n_q_points; ++q) {
         double prod = std::sqrt(phasefield_grads[q] * phasefield_grads[q]);
@@ -171,9 +172,9 @@ template <int dim> bool PhaseFieldFracture<dim>::refine_grid() {
         (this->ctl).triangulation, (this->ctl).quadrature_point_history);
 
     // Prepare transferring of fields
-    parallel::distributed::SolutionTransfer<dim, LA::MPI::Vector>
+    parallel::distributed::SolutionTransfer<dim, LA::MPI::BlockVector>
         soltrans_elasticity = elasticity.prepare_refine();
-    parallel::distributed::SolutionTransfer<dim, LA::MPI::Vector>
+    parallel::distributed::SolutionTransfer<dim, LA::MPI::BlockVector>
         soltrans_phasefield = phasefield.prepare_refine();
 
     (this->ctl).debug_dcout << "Refine - start refinement" << std::endl;

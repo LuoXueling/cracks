@@ -8,16 +8,19 @@
 #include "boundary.h"
 #include "controller.h"
 #include "dealii_includes.h"
+#include "multi_field.h"
 #include "newton_variations.h"
 #include <typeinfo>
 
 template <int dim> class AbstractField {
 public:
-  AbstractField(unsigned int n_components, std::string boundary_from,
+  AbstractField(std::vector<unsigned int> n_components,
+                std::vector<std::string> names,
+                std::vector<std::string> boundary_from,
                 std::string update_scheme, Controller<dim> &ctl);
 
   virtual void assemble_newton_system(bool residual_only,
-                                      LA::MPI::Vector &neumann_rhs,
+                                      LA::MPI::BlockVector &neumann_rhs,
                                       Controller<dim> &ctl) {
     AssertThrow(false, ExcNotImplemented())
   };
@@ -29,7 +32,7 @@ public:
   virtual unsigned int solve_linear_system(
       NewtonInformation<dim> &info, Controller<dim> &ctl,
       SolverControl &solver_control,
-      LA::MPI::PreconditionAMG::AdditionalData &additional_data);
+      BlockDiagonalPreconditioner<LA::MPI::PreconditionAMG> &preconditioner);
   unsigned int solve(Controller<dim> &ctl) {
     NewtonInformation<dim> dummy_info;
     dummy_info.system_matrix_rebuilt =
@@ -39,65 +42,58 @@ public:
   virtual void output_results(DataOut<dim> &data_out, Controller<dim> &ctl) {
     AssertThrow(false, ExcNotImplemented());
   };
-  virtual void define_boundary_condition(std::string boundary_from,
-                                         Controller<dim> &ctl);
   virtual void setup_dirichlet_boundary_condition(Controller<dim> &ctl);
-  virtual void setup_neumann_boundary_condition(
-      std::tuple<unsigned int, std::string, std::vector<double>,
-                 std::vector<double>>
-          neumann_info,
-      LA::MPI::Vector &neumann_rhs, Controller<dim> &ctl);
+  virtual void
+  setup_neumann_boundary_condition(LA::MPI::BlockVector &neumann_rhs,
+                                   Controller<dim> &ctl);
   virtual void setup_system(Controller<dim> &ctl);
   virtual void record_old_solution(Controller<dim> &ctl);
   virtual void return_old_solution(Controller<dim> &ctl);
-  virtual void distribute_hanging_node_constraints(LA::MPI::Vector &vector,
+  virtual void distribute_hanging_node_constraints(LA::MPI::BlockVector &vector,
                                                    Controller<dim> &ctl);
-  virtual void distribute_all_constraints(LA::MPI::Vector &vector,
+  virtual void distribute_all_constraints(LA::MPI::BlockVector &vector,
                                           Controller<dim> &ctl);
 
   virtual double update(Controller<dim> &ctl);
   virtual double update_linear_system(Controller<dim> &ctl);
   virtual double update_newton_system(Controller<dim> &ctl);
   virtual void update_newton_residual(Controller<dim> &ctl);
-  parallel::distributed::SolutionTransfer<dim, LA::MPI::Vector>
+  parallel::distributed::SolutionTransfer<dim, LA::MPI::BlockVector>
   prepare_refine();
-  void post_refine(
-      parallel::distributed::SolutionTransfer<dim, LA::MPI::Vector> &soltrans,
-      Controller<dim> &ctl);
+  void
+  post_refine(parallel::distributed::SolutionTransfer<dim, LA::MPI::BlockVector>
+                  &soltrans,
+              Controller<dim> &ctl);
+  bool dof_is_this_field(unsigned int i_dof, std::string name);
   /*
    * Solver
    */
   std::string update_scheme_timestep;
-  LA::MPI::PreconditionAMG preconditioner;
-  std::vector<std::vector<bool>> constant_modes;
+  std::vector<std::vector<std::vector<bool>>> fields_constant_modes;
 
   /*
    * FE system, constraints, and dof handler
    */
+  MultiFieldCfg<dim> fields;
   FESystem<dim> fe;
   DoFHandler<dim> dof_handler;
   IndexSet locally_owned_dofs;
   IndexSet locally_relevant_dofs;
+  std::vector<IndexSet> fields_locally_owned_dofs;
+  std::vector<IndexSet> fields_locally_relevant_dofs;
   AffineConstraints<double> constraints_hanging_nodes;
   AffineConstraints<double> constraints_all;
 
-  std::vector<ComponentMask> component_masks;
-  std::vector<std::tuple<unsigned int, std::string, unsigned int, double,
-                         std::vector<double>>>
-      dirichlet_boundary_info;
-  std::vector<std::tuple<unsigned int, std::string, std::vector<double>,
-                         std::vector<double>>>
-      neumann_boundary_info;
   /*
    * Solutions
    */
-  LA::MPI::SparseMatrix system_matrix;
-  LA::MPI::Vector solution, newton_update, old_solution;
-  //  LA::MPI::Vector system_total_residual;
-  LA::MPI::Vector system_rhs;
-  LA::MPI::Vector neumann_rhs;
-  //  LA::MPI::Vector diag_mass, diag_mass_relevant;
-  LA::MPI::Vector system_solution;
+  LA::MPI::BlockSparseMatrix system_matrix;
+  LA::MPI::BlockVector solution, newton_update, old_solution;
+  //  LA::MPI::BlockVector system_total_residual;
+  LA::MPI::BlockVector system_rhs;
+  LA::MPI::BlockVector neumann_rhs;
+  //  LA::MPI::BlockVector diag_mass, diag_mass_relevant;
+  LA::MPI::BlockVector system_solution;
 
   SolverControl direct_solver_control;
   TrilinosWrappers::SolverDirect direct_solver;
@@ -107,19 +103,16 @@ public:
 };
 
 template <int dim>
-AbstractField<dim>::AbstractField(const unsigned int n_components,
-                                  std::string boundary_from,
+AbstractField<dim>::AbstractField(std::vector<unsigned int> n_components,
+                                  std::vector<std::string> names,
+                                  std::vector<std::string> boundary_from,
                                   std::string update_scheme,
                                   Controller<dim> &ctl)
-    : fe(FE_Q<dim>(ctl.params.poly_degree), n_components),
+    : fields(n_components, names, boundary_from, ctl),
+      fe(fields.FE_Q_sequence, fields.FE_Q_dim_sequence),
       dof_handler(ctl.triangulation), update_scheme_timestep(update_scheme),
       direct_solver(direct_solver_control) {
-  for (unsigned int d = 0; d < n_components; ++d) {
-    component_masks.push_back(ComponentMask(n_components, false));
-    component_masks[d].set(d, true);
-  }
   newton_ctl = select_newton_variation<dim>(ctl.params.adjustment_method, ctl);
-  define_boundary_condition(boundary_from, ctl);
 }
 
 template <int dim> void AbstractField<dim>::setup_system(Controller<dim> &ctl) {
@@ -129,11 +122,33 @@ template <int dim> void AbstractField<dim>::setup_system(Controller<dim> &ctl) {
    **/
   {
     dof_handler.distribute_dofs(fe);
+    DoFRenumbering::component_wise(dof_handler, fields.block_component);
+#if DEAL_II_VERSION_GTE(9, 2, 0)
+    std::vector<types::global_dof_index> dofs_per_block =
+        DoFTools::count_dofs_per_fe_block(dof_handler,
+                                          fields.components_to_blocks);
+#else
+    std::vector<types::global_dof_index> dofs_per_block(introspection.n_blocks);
+    DoFTools::count_dofs_per_block(dof_handler, dofs_per_block,
+                                   fields.components_to_blocks);
+#endif
+    fields_locally_owned_dofs.clear();
     locally_owned_dofs = dof_handler.locally_owned_dofs();
+    compatibility::split_by_block(dofs_per_block, locally_owned_dofs,
+                                  fields_locally_owned_dofs);
+    fields_locally_relevant_dofs.clear();
     DoFTools::extract_locally_relevant_dofs(dof_handler, locally_relevant_dofs);
-    constant_modes.clear();
-    DoFTools::extract_constant_modes(dof_handler, ComponentMask(),
-                                     constant_modes);
+    compatibility::split_by_block(dofs_per_block, locally_relevant_dofs,
+                                  fields_locally_relevant_dofs);
+
+    fields_constant_modes.clear();
+    for (unsigned int i = 0; i < fields.n_blocks; ++i) {
+      std::vector<std::vector<bool>> constant_modes;
+      constant_modes.clear();
+      DoFTools::extract_constant_modes(
+          dof_handler, fields.component_masks[fields.names[i]], constant_modes);
+      fields_constant_modes.push_back(constant_modes);
+    }
   }
   /**
    * Hanging node and boundary value constraints
@@ -155,16 +170,15 @@ template <int dim> void AbstractField<dim>::setup_system(Controller<dim> &ctl) {
    * Sparsity pattern
    */
   {
-    DynamicSparsityPattern sparsity_pattern(locally_relevant_dofs);
-    DoFTools::make_sparsity_pattern(dof_handler, sparsity_pattern,
-                                    constraints_all,
-                                    /*keep constrained dofs*/ false);
-    SparsityTools::distribute_sparsity_pattern(sparsity_pattern,
-                                               locally_owned_dofs, ctl.mpi_com,
-                                               locally_relevant_dofs);
+    TrilinosWrappers::BlockSparsityPattern sparsity_pattern(
+        fields_locally_owned_dofs, ctl.mpi_com);
+    DoFTools::make_sparsity_pattern(
+        dof_handler, sparsity_pattern, constraints_all,
+        /*keep constrained dofs*/ false,
+        Utilities::MPI::this_mpi_process(ctl.mpi_com));
     sparsity_pattern.compress();
-    system_matrix.reinit(locally_owned_dofs, locally_owned_dofs,
-                         sparsity_pattern, ctl.mpi_com);
+    system_matrix.clear();
+    system_matrix.reinit(sparsity_pattern);
   }
 
   /**
@@ -172,14 +186,14 @@ template <int dim> void AbstractField<dim>::setup_system(Controller<dim> &ctl) {
    */
   {
     // solution has ghost elements.
-    solution.reinit(locally_owned_dofs, locally_relevant_dofs, ctl.mpi_com);
+    solution.reinit(fields_locally_relevant_dofs);
     // system_rhs, system_matrix, and the solution vector system_solution do not
     // have ghost elements
-    system_solution.reinit(locally_owned_dofs, ctl.mpi_com);
-    system_rhs.reinit(locally_owned_dofs, ctl.mpi_com);
-    neumann_rhs.reinit(locally_owned_dofs, ctl.mpi_com);
+    system_solution.reinit(fields_locally_owned_dofs);
+    system_rhs.reinit(fields_locally_owned_dofs);
+    neumann_rhs.reinit(fields_locally_owned_dofs);
     solution = 0;
-    old_solution.reinit(locally_owned_dofs, locally_relevant_dofs, ctl.mpi_com);
+    old_solution.reinit(fields_locally_relevant_dofs);
     old_solution = solution;
     // Initialize fields. Trilino does not allow writing into its parallel
     // vector.
@@ -200,70 +214,15 @@ template <int dim> double AbstractField<dim>::update(Controller<dim> &ctl) {
 }
 
 template <int dim>
-void AbstractField<dim>::define_boundary_condition(
-    const std::string boundary_from, Controller<dim> &ctl) {
-  if (boundary_from == "none") {
-    return;
-  }
-  std::filebuf fb;
-  if (fb.open(boundary_from, std::ios::in)) {
-    std::istream is(&fb);
-    std::string line;
-    unsigned int boundary_id, constrained_dof;
-    std::string constraint_type;
-    double constraint_value;
-    while (std::getline(is, line)) {
-      if (line[0] == '#') {
-        continue;
-      }
-      std::istringstream iss(line);
-      iss >> boundary_id >> constraint_type;
-      if (constraint_type == "velocity" || constraint_type == "dirichlet" ||
-          constraint_type == "triangulardirichlet" ||
-          constraint_type == "sinedirichlet") {
-        std::vector<double> additional_info;
-        if (constraint_type == "velocity" || constraint_type == "dirichlet") {
-          iss >> constrained_dof >> constraint_value;
-        } else {
-          iss >> constrained_dof;
-          constraint_value = 0.0;
-          double temp_value;
-          do {
-            iss >> temp_value;
-            additional_info.push_back(temp_value);
-          } while (!iss.eof());
-        }
-        std::tuple<unsigned int, std::string, unsigned int, double,
-                   std::vector<double>>
-            info(boundary_id, constraint_type, constrained_dof,
-                 constraint_value, additional_info);
-        dirichlet_boundary_info.push_back(info);
-      } else if (constraint_type == "neumann" ||
-                 constraint_type == "neumannrate" ||
-                 constraint_type == "sineneumann" ||
-                 constraint_type == "triangularneumann") {
-        std::vector<double> constraint_vector;
-        std::vector<double> additional_info;
-        double temp_value;
-        do {
-          iss >> temp_value;
-          if (constraint_vector.size() < fe.n_components()) {
-            constraint_vector.push_back(temp_value);
-          } else {
-            additional_info.push_back(temp_value);
-          }
-        } while (!iss.eof());
-        std::tuple<unsigned int, std::string, std::vector<double>,
-                   std::vector<double>>
-            info(boundary_id, constraint_type, constraint_vector,
-                 additional_info);
-        neumann_boundary_info.push_back(info);
-      } else {
-        AssertThrow(false, ExcNotImplemented(constraint_type));
-      }
-    }
-    fb.close();
-  }
+bool AbstractField<dim>::dof_is_this_field(unsigned int i_dof,
+                                           std::string name) {
+  const unsigned int comp_i = fe.system_to_component_index(i_dof).first;
+  if (comp_i < fields.component_start_indices[name] ||
+      comp_i >= fields.component_start_indices[name] +
+                    fields.n_components_fields[name]) {
+    return false;
+  } else
+    return true;
 }
 
 template <int dim>
@@ -274,24 +233,28 @@ void AbstractField<dim>::setup_dirichlet_boundary_condition(
   constraints_all.reinit(locally_relevant_dofs);
   constraints_all.merge(constraints_hanging_nodes,
                         ConstraintMatrix::right_object_wins);
-  for (const std::tuple<unsigned int, std::string, unsigned int, double,
-                        std::vector<double>> &info : dirichlet_boundary_info) {
-    ctl.debug_dcout << "Setting dirichlet boundary" << std::endl;
-    std::unique_ptr<Function<dim>> dirichlet_boundary =
-        select_dirichlet_boundary<dim>(info, fe.n_components(), ctl.time);
-    VectorTools::interpolate_boundary_values(
-        dof_handler, std::get<0>(info), *dirichlet_boundary, constraints_all,
-        component_masks[std::get<2>(info)]);
+  for (auto &it : fields.dirichlet_boundary_info) {
+    for (const std::tuple<unsigned int, std::string, unsigned int, double,
+                          std::vector<double>> &info : it.second) {
+      ctl.debug_dcout << "Setting dirichlet boundary" << std::endl;
+      std::unique_ptr<Function<dim>> dirichlet_boundary =
+          select_dirichlet_boundary<dim>(info, fields.n_components, ctl.time);
+      VectorTools::interpolate_boundary_values(
+          dof_handler, std::get<0>(info), *dirichlet_boundary, constraints_all,
+          fields.component_masks[it.first + "_" +
+                                 std::to_string(std::get<2>(info))]);
+    }
   }
   constraints_all.close();
 }
 
 template <int dim>
 void AbstractField<dim>::setup_neumann_boundary_condition(
-    std::tuple<unsigned int, std::string, std::vector<double>,
-               std::vector<double>>
-        neumann_info,
-    LA::MPI::Vector &neumann_rhs, Controller<dim> &ctl) {
+    LA::MPI::BlockVector &neumann_rhs, Controller<dim> &ctl) {
+
+  ctl.debug_dcout << "Setting neumann boundary" << std::endl;
+  neumann_rhs.reinit(this->fields_locally_owned_dofs);
+
   const QGauss<dim - 1> face_quadrature_formula(ctl.params.poly_degree + 1);
   const unsigned int n_face_q_points = face_quadrature_formula.size();
   const unsigned int dofs_per_cell = fe.dofs_per_cell;
@@ -302,46 +265,67 @@ void AbstractField<dim>::setup_neumann_boundary_condition(
   Vector<double> cell_rhs(dofs_per_cell);
   std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
   std::vector<Vector<double>> neumann_values(n_face_q_points);
-  // Vector<double> cannot be automatically initialized like Tensor
-  for (unsigned int j = 0; j < n_face_q_points; ++j) {
-    neumann_values[j].reinit(fe.n_components());
-  }
 
-  unsigned int boundary_id = std::get<0>(neumann_info);
+  for (unsigned int i_field = 0; i_field < fields.n_blocks; ++i_field) {
+    std::string name = fields.names[i_field];
+    for (unsigned int i_boundary = 0;
+         i_boundary < fields.neumann_boundary_info[name].size(); ++i_boundary) {
+      std::tuple<unsigned int, std::string, std::vector<double>,
+                 std::vector<double>>
+          neumann_info = fields.neumann_boundary_info[name][i_boundary];
 
-  std::unique_ptr<GeneralNeumannBoundary<dim>> neumann_boundary =
-      select_neumann_boundary<dim>(neumann_info, fe.n_components(), ctl.time);
+      // Vector<double> cannot be automatically initialized like Tensor
+      for (unsigned int j = 0; j < n_face_q_points; ++j) {
+        neumann_values[j].reinit(fields.n_components_fields[name]);
+      }
 
-  for (const auto &cell : (this->dof_handler).active_cell_iterators())
-    if (cell->is_locally_owned()) {
-      for (const auto &face : cell->face_iterators()) {
-        if (face->at_boundary() && face->boundary_id() == boundary_id) {
-          cell_rhs = 0;
-          fe_face_values.reinit(cell, face);
-          neumann_boundary->vector_value_list(
-              fe_face_values.get_quadrature_points(), neumann_values);
-          for (unsigned int q_point = 0; q_point < n_face_q_points; ++q_point) {
-            for (unsigned int i = 0; i < dofs_per_cell; ++i) {
-              const unsigned int comp_i = fe.system_to_component_index(i).first;
-              cell_rhs(i) +=
-                  (fe_face_values.shape_value(i, q_point) * // phi_i(x_q)
-                   neumann_values[q_point][comp_i] *        // g(x_q)
-                   fe_face_values.JxW(q_point));            // dx
+      unsigned int boundary_id = std::get<0>(neumann_info);
+
+      std::unique_ptr<GeneralNeumannBoundary<dim>> neumann_boundary =
+          select_neumann_boundary<dim>(
+              neumann_info, fields.n_components_fields[name], ctl.time);
+
+      for (const auto &cell : (this->dof_handler).active_cell_iterators())
+        if (cell->is_locally_owned()) {
+          for (const auto &face : cell->face_iterators()) {
+            if (face->at_boundary() && face->boundary_id() == boundary_id) {
+              ctl.debug_dcout << "Setting neumann boundary - find a cell" << std::endl;
+              cell_rhs = 0;
+              fe_face_values.reinit(cell, face);
+              neumann_boundary->vector_value_list(
+                  fe_face_values.get_quadrature_points(), neumann_values);
+              ctl.debug_dcout << "Setting neumann boundary - integrate" << std::endl;
+              for (unsigned int q_point = 0; q_point < n_face_q_points;
+                   ++q_point) {
+                for (unsigned int i = 0; i < dofs_per_cell; ++i) {
+                  const unsigned int comp_i =
+                      fe.system_to_component_index(i).first;
+                  if (!this->dof_is_this_field(i, name)) {
+                    continue;
+                  }
+                  cell_rhs(i) +=
+                      (fe_face_values.shape_value(i, q_point) * // phi_i(x_q)
+                       neumann_values[q_point][comp_i] *        // g(x_q)
+                       fe_face_values.JxW(q_point));            // dx
+                }
+              }
+              ctl.debug_dcout << "Setting neumann boundary - assign value" << std::endl;
+              cell->get_dof_indices(local_dof_indices);
+              for (unsigned int i = 0; i < dofs_per_cell; ++i) {
+                neumann_rhs(local_dof_indices[i]) += cell_rhs(i);
+              }
+              ctl.debug_dcout << "Setting neumann boundary - finish a cell" << std::endl;
             }
           }
-          cell->get_dof_indices(local_dof_indices);
-          for (unsigned int i = 0; i < dofs_per_cell; ++i) {
-            neumann_rhs(local_dof_indices[i]) += cell_rhs(i);
-          }
         }
-      }
     }
+  }
 }
 
 template <int dim>
 double AbstractField<dim>::update_linear_system(Controller<dim> &ctl) {
   // Cannot distribute constraints to parallel vectors with ghost dofs.
-  LA::MPI::Vector distributed_solution(locally_owned_dofs, ctl.mpi_com);
+  LA::MPI::BlockVector distributed_solution(fields_locally_owned_dofs);
   distributed_solution = solution;
 
   ctl.debug_dcout << "Solve linear system - initialize" << std::endl;
@@ -362,9 +346,9 @@ double AbstractField<dim>::update_linear_system(Controller<dim> &ctl) {
 }
 
 template <int dim>
-void AbstractField<dim>::update_newton_residual(Controller<dim> &ctl){
+void AbstractField<dim>::update_newton_residual(Controller<dim> &ctl) {
   // Cannot distribute constraints to parallel vectors with ghost dofs.
-  LA::MPI::Vector distributed_solution(locally_owned_dofs, ctl.mpi_com);
+  LA::MPI::BlockVector distributed_solution(fields_locally_owned_dofs);
   distributed_solution = solution;
 
   // Application of the initial boundary conditions to the
@@ -385,7 +369,7 @@ double AbstractField<dim>::update_newton_system(Controller<dim> &ctl) {
       << std::endl;
   update_newton_residual(ctl);
 
-  LA::MPI::Vector distributed_solution(locally_owned_dofs, ctl.mpi_com);
+  LA::MPI::BlockVector distributed_solution(fields_locally_owned_dofs);
   distributed_solution = solution;
 
   newton_info.residual = system_rhs.linfty_norm();
@@ -516,53 +500,62 @@ unsigned int AbstractField<dim>::solve(NewtonInformation<dim> &info,
                                        Controller<dim> &ctl) {
   SolverControl solver_control((this->dof_handler).n_dofs(),
                                1e-8 * this->system_rhs.l2_norm());
-  LA::MPI::PreconditionAMG::AdditionalData data;
-  data.constant_modes = (this->constant_modes);
-  data.elliptic = true;
-  data.higher_order_elements = true;
-  data.smoother_sweeps = 2;
-  data.aggregation_threshold = 0.02;
+  ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear "
+                     "system - preconditioner"
+                  << std::endl;
+  std::vector<std::shared_ptr<LA::MPI::PreconditionAMG>> preconditioners;
+  for (unsigned int i = 0; i < fields.n_blocks; ++i) {
+    LA::MPI::PreconditionAMG::AdditionalData data;
+    data.constant_modes = fields_constant_modes[i];
+    data.elliptic = true;
+    data.higher_order_elements = true;
+    data.smoother_sweeps = 2;
+    data.aggregation_threshold = 0.02;
+    std::shared_ptr<LA::MPI::PreconditionAMG> prec(new LA::MPI::PreconditionAMG);
+    prec->initialize(system_matrix.block(i, i), data);
+    preconditioners.push_back(prec);
+  }
+  BlockDiagonalPreconditioner<LA::MPI::PreconditionAMG> preconditioner(
+      preconditioners);
+
   return AbstractField<dim>::solve_linear_system(info, ctl, solver_control,
-                                                 data);
+                                                 preconditioner);
 }
 
 template <int dim>
 unsigned int AbstractField<dim>::solve_linear_system(
     NewtonInformation<dim> &info, Controller<dim> &ctl,
     SolverControl &solver_control,
-    LA::MPI::PreconditionAMG::AdditionalData &additional_data) {
+    BlockDiagonalPreconditioner<LA::MPI::PreconditionAMG> &preconditioner) {
   if (ctl.params.direct_solver) {
-    if (info.system_matrix_rebuilt) {
-      ctl.debug_dcout
-          << "Solve Newton system - Newton iteration - solve linear "
-             "system - factorization"
-          << std::endl;
-      ctl.timer.enter_subsection("Factorization");
-      ctl.computing_timer.enter_subsection("Factorization");
-      this->direct_solver.initialize(this->system_matrix);
-      ctl.computing_timer.leave_subsection("Factorization");
-      ctl.timer.leave_subsection("Factorization");
-    }
-    ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear "
-                       "system - solve LUx=b"
-                    << std::endl;
-    ctl.timer.enter_subsection("Solve LUx=b");
-    ctl.computing_timer.enter_subsection("Solve LUx=b");
-    this->direct_solver.solve(this->system_solution, this->system_rhs);
-    ctl.computing_timer.leave_subsection("Solve LUx=b");
-    ctl.timer.leave_subsection("Solve LUx=b");
+    //    if (info.system_matrix_rebuilt) {
+    //      ctl.debug_dcout
+    //          << "Solve Newton system - Newton iteration - solve linear "
+    //             "system - factorization"
+    //          << std::endl;
+    //      ctl.timer.enter_subsection("Factorization");
+    //      ctl.computing_timer.enter_subsection("Factorization");
+    //      this->direct_solver.initialize(this->system_matrix);
+    //      ctl.computing_timer.leave_subsection("Factorization");
+    //      ctl.timer.leave_subsection("Factorization");
+    //    }
+    //    ctl.debug_dcout << "Solve Newton system - Newton iteration - solve
+    //    linear "
+    //                       "system - solve LUx=b"
+    //                    << std::endl;
+    //    ctl.timer.enter_subsection("Solve LUx=b");
+    //    ctl.computing_timer.enter_subsection("Solve LUx=b");
+    //    this->direct_solver.solve(this->system_solution, this->system_rhs);
+    //    ctl.computing_timer.leave_subsection("Solve LUx=b");
+    //    ctl.timer.leave_subsection("Solve LUx=b");
     return 1;
   } else {
-    ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear "
-                       "system - preconditioner"
-                    << std::endl;
-    SolverGMRES<LA::MPI::Vector> solver(solver_control);
-    (this->preconditioner).initialize(this->system_matrix, additional_data);
+    SolverGMRES<LA::MPI::BlockVector> solver(solver_control);
     ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear "
                        "system - solve"
                     << std::endl;
     solver.solve(this->system_matrix, this->system_solution, this->system_rhs,
-                 (this->preconditioner));
+                 preconditioner);
     ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear "
                        "system - solve complete"
                     << std::endl;
@@ -583,20 +576,20 @@ void AbstractField<dim>::record_old_solution(Controller<dim> &ctl) {
 
 template <int dim>
 void AbstractField<dim>::distribute_hanging_node_constraints(
-    LA::MPI::Vector &vector, Controller<dim> &ctl) {
+    LA::MPI::BlockVector &vector, Controller<dim> &ctl) {
   constraints_hanging_nodes.distribute(vector);
 }
 
 template <int dim>
-void AbstractField<dim>::distribute_all_constraints(LA::MPI::Vector &vector,
-                                                    Controller<dim> &ctl) {
+void AbstractField<dim>::distribute_all_constraints(
+    LA::MPI::BlockVector &vector, Controller<dim> &ctl) {
   constraints_all.distribute(vector);
 }
 
 template <int dim>
-parallel::distributed::SolutionTransfer<dim, LA::MPI::Vector>
+parallel::distributed::SolutionTransfer<dim, LA::MPI::BlockVector>
 AbstractField<dim>::prepare_refine() {
-  parallel::distributed::SolutionTransfer<dim, LA::MPI::Vector> soltrans(
+  parallel::distributed::SolutionTransfer<dim, LA::MPI::BlockVector> soltrans(
       dof_handler);
   soltrans.prepare_for_coarsening_and_refinement(solution);
   return soltrans;
@@ -604,10 +597,11 @@ AbstractField<dim>::prepare_refine() {
 
 template <int dim>
 void AbstractField<dim>::post_refine(
-    parallel::distributed::SolutionTransfer<dim, LA::MPI::Vector> &soltrans,
+    parallel::distributed::SolutionTransfer<dim, LA::MPI::BlockVector>
+        &soltrans,
     Controller<dim> &ctl) {
-  LA::MPI::Vector interpolated_solution;
-  interpolated_solution.reinit(locally_owned_dofs, ctl.mpi_com);
+  LA::MPI::BlockVector interpolated_solution;
+  interpolated_solution.reinit(fields_locally_owned_dofs);
   soltrans.interpolate(interpolated_solution);
   solution = interpolated_solution;
   record_old_solution(ctl);

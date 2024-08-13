@@ -39,11 +39,11 @@ public:
     // Actually no adjustment is done.
     return true;
   }
-  virtual void apply_increment(LA::MPI::Vector &negative_increment,
-                               LA::MPI::Vector &solution,
-                               LA::MPI::SparseMatrix &system_matrix,
-                               LA::MPI::Vector &system_rhs,
-                               LA::MPI::Vector &neumann_rhs,
+  virtual void apply_increment(LA::MPI::BlockVector &negative_increment,
+                               LA::MPI::BlockVector &solution,
+                               LA::MPI::BlockSparseMatrix &system_matrix,
+                               LA::MPI::BlockVector &system_rhs,
+                               LA::MPI::BlockVector &neumann_rhs,
                                NewtonInformation<dim> &info,
                                Controller<dim> &ctl) {
     solution -= negative_increment;
@@ -63,11 +63,11 @@ public:
       }
     }
   };
-  virtual void prepare_next_adjustment(LA::MPI::Vector &negative_increment,
-                                       LA::MPI::Vector &solution,
-                                       LA::MPI::SparseMatrix &system_matrix,
-                                       LA::MPI::Vector &system_rhs,
-                                       LA::MPI::Vector &neumann_rhs,
+  virtual void prepare_next_adjustment(LA::MPI::BlockVector &negative_increment,
+                                       LA::MPI::BlockVector &solution,
+                                       LA::MPI::BlockSparseMatrix &system_matrix,
+                                       LA::MPI::BlockVector &system_rhs,
+                                       LA::MPI::BlockVector &neumann_rhs,
                                        NewtonInformation<dim> &info,
                                        Controller<dim> &ctl) {
     throw SolverControl::NoConvergence(0, 0);
@@ -144,11 +144,11 @@ public:
     return info.new_residual < info.residual;
   }
 
-  void prepare_next_adjustment(LA::MPI::Vector &negative_increment,
-                               LA::MPI::Vector &solution,
-                               LA::MPI::SparseMatrix &system_matrix,
-                               LA::MPI::Vector &system_rhs,
-                               LA::MPI::Vector &neumann_rhs,
+  void prepare_next_adjustment(LA::MPI::BlockVector &negative_increment,
+                               LA::MPI::BlockVector &solution,
+                               LA::MPI::BlockSparseMatrix &system_matrix,
+                               LA::MPI::BlockVector &system_rhs,
+                               LA::MPI::BlockVector &neumann_rhs,
                                NewtonInformation<dim> &info,
                                Controller<dim> &ctl) override {
     if (damping >= 1) {

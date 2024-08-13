@@ -20,7 +20,8 @@ using namespace dealii;
 template <int dim> class PhaseField : public AbstractField<dim> {
 public:
   PhaseField(std::string update_scheme, Controller<dim> &ctl);
-  void assemble_newton_system(bool residual_only, LA::MPI::Vector &neumann_rhs,
+  void assemble_newton_system(bool residual_only,
+                              LA::MPI::BlockVector &neumann_rhs,
                               Controller<dim> &ctl) override;
   void assemble_linear_system(Controller<dim> &ctl) override;
   void output_results(DataOut<dim> &data_out, Controller<dim> &ctl) override;
@@ -30,7 +31,10 @@ public:
 
 template <int dim>
 PhaseField<dim>::PhaseField(std::string update_scheme, Controller<dim> &ctl)
-    : AbstractField<dim>(1, "none", update_scheme, ctl) {}
+    : AbstractField<dim>(std::vector<unsigned int>(1, 1),
+                         std::vector<std::string>(1, "phasefield"),
+                         std::vector<std::string>(1, "none"), update_scheme,
+                         ctl) {}
 
 template <int dim>
 void PhaseField<dim>::assemble_linear_system(Controller<dim> &ctl) {
@@ -46,6 +50,9 @@ void PhaseField<dim>::assemble_linear_system(Controller<dim> &ctl) {
 
   FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
   Vector<double> cell_rhs(dofs_per_cell);
+
+  const FEValuesExtractors::Scalar extractor =
+      (this->fields).extractors_scalar["phasefield"];
 
   std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
 
@@ -75,8 +82,10 @@ void PhaseField<dim>::assemble_linear_system(Controller<dim> &ctl) {
 
       fe_values.reinit(cell);
 
-      fe_values.get_function_values((this->solution), old_phasefield_values);
-      fe_values.get_function_gradients((this->solution), old_phasefield_grads);
+      fe_values[extractor].get_function_values((this->solution),
+                                               old_phasefield_values);
+      fe_values[extractor].get_function_gradients((this->solution),
+                                                  old_phasefield_grads);
 
       // Get history
       const std::vector<std::shared_ptr<PointHistory>> lqph =
@@ -89,8 +98,8 @@ void PhaseField<dim>::assemble_linear_system(Controller<dim> &ctl) {
 
         // Values of fields and their derivatives
         for (unsigned int k = 0; k < dofs_per_cell; ++k) {
-          Nphi_kq[k] = fe_values.shape_value(k, q);
-          Bphi_kq[k] = fe_values.shape_grad(k, q);
+          Nphi_kq[k] = fe_values[extractor].value(k, q);
+          Bphi_kq[k] = fe_values[extractor].gradient(k, q);
         }
 
         for (unsigned int i = 0; i < dofs_per_cell; ++i) {
@@ -142,7 +151,7 @@ void PhaseField<dim>::assemble_linear_system(Controller<dim> &ctl) {
 
 template <int dim>
 void PhaseField<dim>::assemble_newton_system(bool residual_only,
-                                             LA::MPI::Vector &neumann_rhs,
+                                             LA::MPI::BlockVector &neumann_rhs,
                                              Controller<dim> &ctl) {
   (this->system_rhs) = 0;
   if (!residual_only) {
@@ -158,6 +167,9 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
 
   FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
   Vector<double> cell_rhs(dofs_per_cell);
+
+  const FEValuesExtractors::Scalar extractor =
+      (this->fields).extractors_scalar["phasefield"];
 
   std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
 
@@ -183,8 +195,10 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
 
       fe_values.reinit(cell);
 
-      fe_values.get_function_values((this->solution), old_phasefield_values);
-      fe_values.get_function_gradients((this->solution), old_phasefield_grads);
+      fe_values[extractor].get_function_values((this->solution),
+                                               old_phasefield_values);
+      fe_values[extractor].get_function_gradients((this->solution),
+                                                  old_phasefield_grads);
       // Get history
       const std::vector<std::shared_ptr<PointHistory>> lqph =
           ctl.quadrature_point_history.get_data(cell);
@@ -192,8 +206,8 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
       for (unsigned int q = 0; q < n_q_points; ++q) {
         // Values of fields and their derivatives
         for (unsigned int k = 0; k < dofs_per_cell; ++k) {
-          Nphi_kq[k] = fe_values.shape_value(k, q);
-          Bphi_kq[k] = fe_values.shape_grad(k, q);
+          Nphi_kq[k] = fe_values[extractor].value(k, q);
+          Bphi_kq[k] = fe_values[extractor].gradient(k, q);
         }
 
         double H = lqph[q]->get("Driving force", 0.0);
@@ -235,8 +249,14 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
         }
 
         for (unsigned int i = 0; i < dofs_per_cell; ++i) {
+          if (!this->dof_is_this_field(i, "phasefield")) {
+            continue;
+          }
           if (!residual_only) {
             for (unsigned int j = 0; j < dofs_per_cell; ++j) {
+              if (!this->dof_is_this_field(j, "phasefield")) {
+                continue;
+              }
               {
                 cell_matrix(i, j) +=
                     (ctl.params.Gc / (2 * cw) * fatigue_degrade *
@@ -284,16 +304,26 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
 template <int dim>
 void PhaseField<dim>::output_results(DataOut<dim> &data_out,
                                      Controller<dim> &ctl) {
-
-  data_out.add_data_vector((this->dof_handler), (this->solution),
-                           "Phase_field");
-  PointHistoryProcessor<dim> hist_processor("Driving force", this->fe, ctl);
-  hist_processor.add_data_scalar(this->solution, data_out, this->dof_handler,
-                                 ctl);
+  std::vector<DataComponentInterpretation::DataComponentInterpretation>
+      data_component_interpretation(
+          dim, DataComponentInterpretation::component_is_scalar);
+  data_out.add_data_vector(
+      (this->dof_handler),
+      (this->solution)
+          .block(
+              (this->fields)
+                  .components_to_blocks
+                      [(this->fields).component_start_indices["phasefield"]]),
+      std::vector<std::string>(1, "Phase_field"),
+      data_component_interpretation);
+  PointHistoryProcessor<dim> hist_processor("Driving force", this->fields,
+                                            this->fe, ctl);
+  hist_processor.add_data_scalar(this->solution, this->fields, data_out,
+                                 this->dof_handler, ctl);
   if (ctl.params.enable_fatigue) {
-    PointHistoryProcessor<dim> fatigue_processor("Fatigue history", this->fe,
-                                                 ctl);
-    fatigue_processor.add_data_scalar(this->solution, data_out,
+    PointHistoryProcessor<dim> fatigue_processor("Fatigue history",
+                                                 this->fields, this->fe, ctl);
+    fatigue_processor.add_data_scalar(this->solution, this->fields, data_out,
                                       this->dof_handler, ctl);
   }
 }
@@ -305,7 +335,7 @@ void PhaseField<dim>::enforce_phase_field_limitation(Controller<dim> &ctl) {
                                                  endc =
                                                      (this->dof_handler).end();
 
-  LA::MPI::Vector distributed_solution(this->locally_owned_dofs, ctl.mpi_com);
+  LA::MPI::BlockVector distributed_solution(this->fields_locally_owned_dofs);
   distributed_solution = this->solution;
 
   std::vector<types::global_dof_index> local_dof_indices(
@@ -314,6 +344,9 @@ void PhaseField<dim>::enforce_phase_field_limitation(Controller<dim> &ctl) {
     if (cell->is_locally_owned()) {
       cell->get_dof_indices(local_dof_indices);
       for (unsigned int i = 0; i < (this->fe).dofs_per_cell; ++i) {
+        if(!this->dof_is_this_field(i, "phasefield")){
+          continue;
+        }
         const types::global_dof_index idx = local_dof_indices[i];
         if (!(this->dof_handler).locally_owned_dofs().is_element(idx))
           continue;

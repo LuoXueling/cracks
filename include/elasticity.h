@@ -20,35 +20,34 @@ using namespace dealii;
 
 template <int dim> class Elasticity : public AbstractField<dim> {
 public:
-  Elasticity(unsigned int n_components, std::string boundary_from,
-             std::string update_scheme, Controller<dim> &ctl);
+  Elasticity(std::string boundary_from, std::string update_scheme,
+             Controller<dim> &ctl);
 
-  void assemble_newton_system(bool residual_only, LA::MPI::Vector &neumann_rhs,
+  void assemble_newton_system(bool residual_only,
+                              LA::MPI::BlockVector &neumann_rhs,
                               Controller<dim> &ctl) override;
   void output_results(DataOut<dim> &data_out, Controller<dim> &ctl) override;
 
   void compute_load(Controller<dim> &ctl);
 
   ConstitutiveLaw<dim> constitutive_law;
-
-  StrainPostprocessor<dim> strain;
-  StressPostprocessor<dim> stress;
 };
 
 template <int dim>
-Elasticity<dim>::Elasticity(const unsigned int n_components,
-                            std::string boundary_from,
+Elasticity<dim>::Elasticity(std::string boundary_from,
                             std::string update_scheme, Controller<dim> &ctl)
-    : AbstractField<dim>(n_components, boundary_from, update_scheme, ctl),
-      constitutive_law(ctl.params.E, ctl.params.v, ctl.params.plane_state),
-      stress(constitutive_law) {
+    : AbstractField<dim>(std::vector<unsigned int>(1, dim),
+                         std::vector<std::string>(1, "elasticity"),
+                         std::vector<std::string>(1, boundary_from),
+                         update_scheme, ctl),
+      constitutive_law(ctl.params.E, ctl.params.v, ctl.params.plane_state) {
   this->newton_ctl = select_newton_variation<dim>(
       ctl.params.adjustment_method_elasticity, ctl);
 }
 
 template <int dim>
 void Elasticity<dim>::assemble_newton_system(bool residual_only,
-                                             LA::MPI::Vector &neumann_rhs,
+                                             LA::MPI::BlockVector &neumann_rhs,
                                              Controller<dim> &ctl) {
   (this->system_rhs) = 0;
   if (!residual_only) {
@@ -65,7 +64,8 @@ void Elasticity<dim>::assemble_newton_system(bool residual_only,
   FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
   Vector<double> cell_rhs(dofs_per_cell);
 
-  const FEValuesExtractors::Vector displacement(0);
+  const FEValuesExtractors::Vector displacement =
+      (this->fields).extractors_vector["elasticity"];
 
   std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
 
@@ -85,12 +85,7 @@ void Elasticity<dim>::assemble_newton_system(bool residual_only,
   // Integrate face load
   // If integrated (or modified by arc length control), skip the process.
   if (neumann_rhs.all_zero()) {
-    neumann_rhs = this->system_rhs;
-    neumann_rhs = 0;
-    for (unsigned int i = 0; i < (this->neumann_boundary_info).size(); ++i) {
-      this->setup_neumann_boundary_condition((this->neumann_boundary_info)[i],
-                                             neumann_rhs, ctl);
-    }
+    this->setup_neumann_boundary_condition(neumann_rhs, ctl);
   }
   this->system_rhs -= neumann_rhs;
 
@@ -165,10 +160,16 @@ void Elasticity<dim>::assemble_newton_system(bool residual_only,
         // const double tr_E = trace(E);
 
         for (unsigned int i = 0; i < dofs_per_cell; ++i) {
+          if (!this->dof_is_this_field(i, "elasticity")) {
+            continue;
+          }
           // Solution B (without split):
           // const double Bu_kq_symmetric_tr = trace(Bu_kq_symmetric[i]);
           if (!residual_only) {
             for (unsigned int j = 0; j < dofs_per_cell; ++j) {
+              if (!this->dof_is_this_field(j, "elasticity")) {
+                continue;
+              }
               {
                 cell_matrix(i, j) +=
                     // Solution A:
@@ -220,8 +221,9 @@ void Elasticity<dim>::assemble_newton_system(bool residual_only,
 template <int dim> class StressProcessor : public CellProcessor<dim> {
 public:
   StressProcessor(ConstitutiveLaw<dim> &constitutive_law_in,
-                  FESystem<dim> &fe_in, Controller<dim> &ctl_in)
-      : CellProcessor<dim>(fe_in, ctl_in),
+                  FESystem<dim> &fe_in, MultiFieldCfg<dim> &fields,
+                  Controller<dim> &ctl_in)
+      : CellProcessor<dim>(fe_in, fields, ctl_in),
         decomposition(select_decomposition<dim>(ctl_in.params.decomposition)),
         constitutive_law(constitutive_law_in){};
 
@@ -230,9 +232,11 @@ public:
   void
   get_q_vector_values(std::vector<Vector<double>> &data,
                       const std::vector<std::shared_ptr<PointHistory>> &lqph,
-                      LA::MPI::Vector &solution,
+                      LA::MPI::BlockVector &solution,
+                      MultiFieldCfg<dim> &fields,
                       Controller<dim> &ctl) override {
-    const FEValuesExtractors::Vector displacement(0);
+    const FEValuesExtractors::Vector displacement =
+        fields.extractors_vector["elasticity"];
     std::vector<Tensor<2, dim>> old_displacement_grads(
         ctl.quadrature_formula.size());
     (this->fe_values)[displacement].get_function_gradients(
@@ -277,14 +281,17 @@ public:
 
 template <int dim> class StrainProcessor : public CellProcessor<dim> {
 public:
-  StrainProcessor(FESystem<dim> &fe_in, Controller<dim> &ctl_in)
-      : CellProcessor<dim>(fe_in, ctl_in){};
+  StrainProcessor(FESystem<dim> &fe_in, MultiFieldCfg<dim> &fields,
+                  Controller<dim> &ctl_in)
+      : CellProcessor<dim>(fe_in, fields, ctl_in){};
 
   void get_q_vector_values(
       std::vector<Vector<double>> &data,
       const std::vector<std::shared_ptr<PointHistory>> & /*lqph*/,
-      LA::MPI::Vector &solution, Controller<dim> &ctl) override {
-    const FEValuesExtractors::Vector displacement(0);
+      LA::MPI::BlockVector &solution, MultiFieldCfg<dim> &fields,
+      Controller<dim> &ctl) override {
+    const FEValuesExtractors::Vector displacement =
+        fields.extractors_vector["elasticity"];
     std::vector<Tensor<2, dim>> old_displacement_grads(
         ctl.quadrature_formula.size());
     (this->fe_values)[displacement].get_function_gradients(
@@ -312,18 +319,23 @@ void Elasticity<dim>::output_results(DataOut<dim> &data_out,
   std::vector<DataComponentInterpretation::DataComponentInterpretation>
       data_component_interpretation(
           dim, DataComponentInterpretation::component_is_part_of_vector);
-  data_out.add_data_vector((this->dof_handler), (this->solution),
-                           solution_names, data_component_interpretation);
+  data_out.add_data_vector(
+      (this->dof_handler),
+      (this->solution)
+          .block((this->fields).components_to_blocks
+                     [(this->fields).component_start_indices["elasticity"]]),
+      solution_names, data_component_interpretation);
   ctl.debug_dcout << "Computing output - elasticity - strain" << std::endl;
   //   data_out.add_data_vector((this->dof_handler), (this->solution), strain);
-  StrainProcessor<dim> strain_processor(this->fe, ctl);
-  strain_processor.add_data_vector(this->solution, data_out, this->dof_handler,
-                                   ctl);
+  StrainProcessor<dim> strain_processor(this->fe, this->fields, ctl);
+  strain_processor.add_data_vector(this->solution, this->fields, data_out,
+                                   this->dof_handler, ctl);
   ctl.debug_dcout << "Computing output - elasticity - stress" << std::endl;
   //  data_out.add_data_vector((this->dof_handler), (this->solution), stress);
-  StressProcessor<dim> stress_processor(constitutive_law, this->fe, ctl);
-  stress_processor.add_data_vector(this->solution, data_out, this->dof_handler,
-                                   ctl);
+  StressProcessor<dim> stress_processor(constitutive_law, this->fe,
+                                        this->fields, ctl);
+  stress_processor.add_data_vector(this->solution, this->fields, data_out,
+                                   this->dof_handler, ctl);
   // Record statistics
   ctl.debug_dcout << "Computing output - elasticity - load" << std::endl;
   compute_load(ctl);
@@ -353,7 +365,8 @@ template <int dim> void Elasticity<dim>::compute_load(Controller<dim> &ctl) {
 
   for (const int id : ctl.boundary_ids)
     load_value[id] = Tensor<1, dim>();
-  const FEValuesExtractors::Vector displacement(0);
+  const FEValuesExtractors::Vector displacement =
+      (this->fields).extractors_vector["elasticity"];
   ctl.debug_dcout << "Computing output - elasticity - load - computing"
                   << std::endl;
   // Determine degradation
