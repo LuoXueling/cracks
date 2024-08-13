@@ -146,7 +146,7 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
       ctl.dcout << "Failed to solve: " << e.what() << std::endl;
       break;
     }
-
+    ctl.finalize_point_history();
     // Recover time step
     ctl.current_timestep = tmp_current_timestep;
     ctl.timer.leave_subsection("Solve Newton system");

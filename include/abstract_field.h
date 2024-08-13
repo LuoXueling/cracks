@@ -58,6 +58,7 @@ public:
   virtual double update(Controller<dim> &ctl);
   virtual double update_linear_system(Controller<dim> &ctl);
   virtual double update_newton_system(Controller<dim> &ctl);
+  virtual void update_newton_residual(Controller<dim> &ctl);
   parallel::distributed::SolutionTransfer<dim, LA::MPI::Vector>
   prepare_refine();
   void post_refine(
@@ -94,6 +95,7 @@ public:
   LA::MPI::Vector solution, newton_update, old_solution;
   //  LA::MPI::Vector system_total_residual;
   LA::MPI::Vector system_rhs;
+  LA::MPI::Vector neumann_rhs;
   //  LA::MPI::Vector diag_mass, diag_mass_relevant;
   LA::MPI::Vector system_solution;
 
@@ -101,6 +103,7 @@ public:
   TrilinosWrappers::SolverDirect direct_solver;
 
   std::unique_ptr<NewtonVariation<dim>> newton_ctl;
+  NewtonInformation<dim> newton_info;
 };
 
 template <int dim>
@@ -174,6 +177,7 @@ template <int dim> void AbstractField<dim>::setup_system(Controller<dim> &ctl) {
     // have ghost elements
     system_solution.reinit(locally_owned_dofs, ctl.mpi_com);
     system_rhs.reinit(locally_owned_dofs, ctl.mpi_com);
+    neumann_rhs.reinit(locally_owned_dofs, ctl.mpi_com);
     solution = 0;
     old_solution.reinit(locally_owned_dofs, locally_relevant_dofs, ctl.mpi_com);
     old_solution = solution;
@@ -358,28 +362,32 @@ double AbstractField<dim>::update_linear_system(Controller<dim> &ctl) {
 }
 
 template <int dim>
-double AbstractField<dim>::update_newton_system(Controller<dim> &ctl) {
-  ctl.dcout << "It.\tResidual\tReduction\t#LinIts" << std::endl;
-
+void AbstractField<dim>::update_newton_residual(Controller<dim> &ctl){
   // Cannot distribute constraints to parallel vectors with ghost dofs.
   LA::MPI::Vector distributed_solution(locally_owned_dofs, ctl.mpi_com);
   distributed_solution = solution;
 
   // Application of the initial boundary conditions to the
   // variational equations:
-  ctl.debug_dcout << "Solve Newton system - Newton iteration - initialize"
-                  << std::endl;
   setup_dirichlet_boundary_condition(ctl);
   distribute_all_constraints(distributed_solution, ctl);
   solution = distributed_solution;
+  neumann_rhs = 0;
+  assemble_newton_system(true, neumann_rhs, ctl);
+}
+
+template <int dim>
+double AbstractField<dim>::update_newton_system(Controller<dim> &ctl) {
+  ctl.dcout << "It.\tResidual\tReduction\t#LinIts" << std::endl;
+
   ctl.debug_dcout
       << "Solve Newton system - Newton iteration - first residual assemble"
       << std::endl;
-  LA::MPI::Vector neumann_rhs = system_rhs;
-  neumann_rhs = 0;
-  assemble_newton_system(true, neumann_rhs, ctl);
+  update_newton_residual(ctl);
 
-  NewtonInformation<dim> newton_info;
+  LA::MPI::Vector distributed_solution(locally_owned_dofs, ctl.mpi_com);
+  distributed_solution = solution;
+
   newton_info.residual = system_rhs.linfty_norm();
   newton_info.old_residual = newton_info.residual * 1e8;
   newton_info.i_step = 1;
