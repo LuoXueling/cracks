@@ -27,6 +27,7 @@ template <int dim> struct MultiFieldCfg {
 
   std::vector<unsigned int> block_component;
   unsigned int n_components;
+  unsigned int n_fields;
   unsigned int n_blocks;
 
   std::map<std::string, unsigned int> n_components_fields;
@@ -52,7 +53,8 @@ MultiFieldCfg<dim>::MultiFieldCfg(std::vector<unsigned int> n_components_list,
                                   std::vector<std::string> names_in,
                                   std::vector<std::string> boundary_from,
                                   Controller<dim> &ctl)
-    : n_components(0), n_blocks(n_components_list.size()), names(names_in) {
+    : n_components(0), n_fields(n_components_list.size()), names(names_in) {
+  n_blocks = (ctl.params.direct_solver) ? 1 : n_fields;
   for (unsigned int i_field = 0; i_field < n_components_list.size();
        ++i_field) {
     n_components_fields[names[i_field]] = n_components_list[i_field];
@@ -85,7 +87,9 @@ MultiFieldCfg<dim>::MultiFieldCfg(std::vector<unsigned int> n_components_list,
       component_masks[name + "_" + std::to_string(i_comp)].set(
           processed_components + i_comp, true);
       component_masks[name].set(processed_components + i_comp, true);
-      components_to_blocks[processed_components + i_comp] = i_field;
+      if (!ctl.params.direct_solver) {
+        components_to_blocks[processed_components + i_comp] = i_field;
+      }
     }
 
     define_boundary_condition(boundary_from[i_field], name);

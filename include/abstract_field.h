@@ -65,6 +65,9 @@ public:
                   &soltrans,
               Controller<dim> &ctl);
   bool dof_is_this_field(unsigned int i_dof, std::string name);
+  unsigned int block_id(std::string name) {
+    return fields.components_to_blocks[fields.component_start_indices[name]];
+  }
   /*
    * Solver
    */
@@ -122,7 +125,7 @@ template <int dim> void AbstractField<dim>::setup_system(Controller<dim> &ctl) {
    **/
   {
     dof_handler.distribute_dofs(fe);
-    DoFRenumbering::component_wise(dof_handler, fields.block_component);
+    DoFRenumbering::component_wise(dof_handler, fields.components_to_blocks);
 #if DEAL_II_VERSION_GTE(9, 2, 0)
     std::vector<types::global_dof_index> dofs_per_block =
         DoFTools::count_dofs_per_fe_block(dof_handler,
@@ -142,7 +145,7 @@ template <int dim> void AbstractField<dim>::setup_system(Controller<dim> &ctl) {
                                   fields_locally_relevant_dofs);
 
     fields_constant_modes.clear();
-    for (unsigned int i = 0; i < fields.n_blocks; ++i) {
+    for (unsigned int i = 0; i < fields.n_fields; ++i) {
       std::vector<std::vector<bool>> constant_modes;
       constant_modes.clear();
       DoFTools::extract_constant_modes(
@@ -266,7 +269,7 @@ void AbstractField<dim>::setup_neumann_boundary_condition(
   std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
   std::vector<Vector<double>> neumann_values(n_face_q_points);
 
-  for (unsigned int i_field = 0; i_field < fields.n_blocks; ++i_field) {
+  for (unsigned int i_field = 0; i_field < fields.n_fields; ++i_field) {
     std::string name = fields.names[i_field];
     for (unsigned int i_boundary = 0;
          i_boundary < fields.neumann_boundary_info[name].size(); ++i_boundary) {
@@ -289,12 +292,10 @@ void AbstractField<dim>::setup_neumann_boundary_condition(
         if (cell->is_locally_owned()) {
           for (const auto &face : cell->face_iterators()) {
             if (face->at_boundary() && face->boundary_id() == boundary_id) {
-              ctl.debug_dcout << "Setting neumann boundary - find a cell" << std::endl;
               cell_rhs = 0;
               fe_face_values.reinit(cell, face);
               neumann_boundary->vector_value_list(
                   fe_face_values.get_quadrature_points(), neumann_values);
-              ctl.debug_dcout << "Setting neumann boundary - integrate" << std::endl;
               for (unsigned int q_point = 0; q_point < n_face_q_points;
                    ++q_point) {
                 for (unsigned int i = 0; i < dofs_per_cell; ++i) {
@@ -309,12 +310,10 @@ void AbstractField<dim>::setup_neumann_boundary_condition(
                        fe_face_values.JxW(q_point));            // dx
                 }
               }
-              ctl.debug_dcout << "Setting neumann boundary - assign value" << std::endl;
               cell->get_dof_indices(local_dof_indices);
               for (unsigned int i = 0; i < dofs_per_cell; ++i) {
                 neumann_rhs(local_dof_indices[i]) += cell_rhs(i);
               }
-              ctl.debug_dcout << "Setting neumann boundary - finish a cell" << std::endl;
             }
           }
         }
@@ -503,23 +502,31 @@ unsigned int AbstractField<dim>::solve(NewtonInformation<dim> &info,
   ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear "
                      "system - preconditioner"
                   << std::endl;
-  std::vector<std::shared_ptr<LA::MPI::PreconditionAMG>> preconditioners;
-  for (unsigned int i = 0; i < fields.n_blocks; ++i) {
-    LA::MPI::PreconditionAMG::AdditionalData data;
-    data.constant_modes = fields_constant_modes[i];
-    data.elliptic = true;
-    data.higher_order_elements = true;
-    data.smoother_sweeps = 2;
-    data.aggregation_threshold = 0.02;
-    std::shared_ptr<LA::MPI::PreconditionAMG> prec(new LA::MPI::PreconditionAMG);
-    prec->initialize(system_matrix.block(i, i), data);
-    preconditioners.push_back(prec);
+  if (ctl.params.direct_solver) {
+    std::vector<std::shared_ptr<LA::MPI::PreconditionAMG>> preconditioners;
+    BlockDiagonalPreconditioner<LA::MPI::PreconditionAMG> preconditioner(
+        preconditioners);
+    return AbstractField<dim>::solve_linear_system(info, ctl, solver_control,
+                                                   preconditioner);
+  } else {
+    std::vector<std::shared_ptr<LA::MPI::PreconditionAMG>> preconditioners;
+    for (unsigned int i = 0; i < fields.n_blocks; ++i) {
+      LA::MPI::PreconditionAMG::AdditionalData data;
+      data.constant_modes = fields_constant_modes[i];
+      data.elliptic = true;
+      data.higher_order_elements = true;
+      data.smoother_sweeps = 2;
+      data.aggregation_threshold = 0.02;
+      std::shared_ptr<LA::MPI::PreconditionAMG> prec(
+          new LA::MPI::PreconditionAMG);
+      prec->initialize(system_matrix.block(i, i), data);
+      preconditioners.push_back(prec);
+    }
+    BlockDiagonalPreconditioner<LA::MPI::PreconditionAMG> preconditioner(
+        preconditioners);
+    return AbstractField<dim>::solve_linear_system(info, ctl, solver_control,
+                                                   preconditioner);
   }
-  BlockDiagonalPreconditioner<LA::MPI::PreconditionAMG> preconditioner(
-      preconditioners);
-
-  return AbstractField<dim>::solve_linear_system(info, ctl, solver_control,
-                                                 preconditioner);
 }
 
 template <int dim>
@@ -528,34 +535,32 @@ unsigned int AbstractField<dim>::solve_linear_system(
     SolverControl &solver_control,
     BlockDiagonalPreconditioner<LA::MPI::PreconditionAMG> &preconditioner) {
   if (ctl.params.direct_solver) {
-    //    if (info.system_matrix_rebuilt) {
-    //      ctl.debug_dcout
-    //          << "Solve Newton system - Newton iteration - solve linear "
-    //             "system - factorization"
-    //          << std::endl;
-    //      ctl.timer.enter_subsection("Factorization");
-    //      ctl.computing_timer.enter_subsection("Factorization");
-    //      this->direct_solver.initialize(this->system_matrix);
-    //      ctl.computing_timer.leave_subsection("Factorization");
-    //      ctl.timer.leave_subsection("Factorization");
-    //    }
-    //    ctl.debug_dcout << "Solve Newton system - Newton iteration - solve
-    //    linear "
-    //                       "system - solve LUx=b"
-    //                    << std::endl;
-    //    ctl.timer.enter_subsection("Solve LUx=b");
-    //    ctl.computing_timer.enter_subsection("Solve LUx=b");
-    //    this->direct_solver.solve(this->system_solution, this->system_rhs);
-    //    ctl.computing_timer.leave_subsection("Solve LUx=b");
-    //    ctl.timer.leave_subsection("Solve LUx=b");
+    if (info.system_matrix_rebuilt) {
+      ctl.debug_dcout
+          << "Solve Newton system - Newton iteration - solve linear "
+             "system - factorization"
+          << std::endl;
+      ctl.timer.enter_subsection("Factorization");
+      ctl.computing_timer.enter_subsection("Factorization");
+      direct_solver.initialize(system_matrix.block(0, 0));
+      ctl.computing_timer.leave_subsection("Factorization");
+      ctl.timer.leave_subsection("Factorization");
+    }
+    ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear "
+                       "system - solve LUx=b"
+                    << std::endl;
+    ctl.timer.enter_subsection("Solve LUx=b");
+    ctl.computing_timer.enter_subsection("Solve LUx=b");
+    direct_solver.solve(system_solution.block(0), system_rhs.block(0));
+    ctl.computing_timer.leave_subsection("Solve LUx=b");
+    ctl.timer.leave_subsection("Solve LUx=b");
     return 1;
   } else {
     SolverGMRES<LA::MPI::BlockVector> solver(solver_control);
     ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear "
                        "system - solve"
                     << std::endl;
-    solver.solve(this->system_matrix, this->system_solution, this->system_rhs,
-                 preconditioner);
+    solver.solve(system_matrix, system_solution, system_rhs, preconditioner);
     ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear "
                        "system - solve complete"
                     << std::endl;

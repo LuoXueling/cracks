@@ -49,9 +49,9 @@ template <int dim>
 void Elasticity<dim>::assemble_newton_system(bool residual_only,
                                              LA::MPI::BlockVector &neumann_rhs,
                                              Controller<dim> &ctl) {
-  (this->system_rhs) = 0;
+  (this->system_rhs).block(this->block_id("elasticity")) = 0;
   if (!residual_only) {
-    (this->system_matrix) = 0;
+    (this->system_matrix).block(this->block_id("elasticity"), this->block_id("phasefield")) = 0;
   }
 
   FEValues<dim> fe_values((this->fe), ctl.quadrature_formula,
@@ -319,12 +319,9 @@ void Elasticity<dim>::output_results(DataOut<dim> &data_out,
   std::vector<DataComponentInterpretation::DataComponentInterpretation>
       data_component_interpretation(
           dim, DataComponentInterpretation::component_is_part_of_vector);
-  data_out.add_data_vector(
-      (this->dof_handler),
-      (this->solution)
-          .block((this->fields).components_to_blocks
-                     [(this->fields).component_start_indices["elasticity"]]),
-      solution_names, data_component_interpretation);
+  data_out.add_data_vector((this->dof_handler),
+                           (this->solution).block(this->block_id("elasticity")),
+                           solution_names, data_component_interpretation);
   ctl.debug_dcout << "Computing output - elasticity - strain" << std::endl;
   //   data_out.add_data_vector((this->dof_handler), (this->solution), strain);
   StrainProcessor<dim> strain_processor(this->fe, this->fields, ctl);

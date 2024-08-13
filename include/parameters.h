@@ -77,6 +77,7 @@ struct Runtime {
   std::string linesearch_parameters;
   std::string modified_newton_parameters;
   unsigned int max_adjustment_steps;
+  bool is_monolithic;
   std::string phase_field_scheme;
   std::string decomposition;
   double constant_k;
@@ -127,6 +128,7 @@ void Runtime::subsection_declare_parameters(ParameterHandler &prm) {
 
     prm.declare_entry("Line search damping", "0.5", Patterns::Double(0));
 
+    prm.declare_entry("Use monolithic", "false", Patterns::Bool());
     prm.declare_entry("Phase field update", "newton",
                       Patterns::Selection("newton|linear"));
 
@@ -169,6 +171,7 @@ void Runtime::subsection_parse_parameters(ParameterHandler &prm) {
     linesearch_parameters = prm.get("Parameters of line search");
     modified_newton_parameters = prm.get("Parameters of modified newton");
 
+    is_monolithic = prm.get_bool("Use monolithic");
     phase_field_scheme = prm.get("Phase field update");
     decomposition = prm.get("Decomposition");
 

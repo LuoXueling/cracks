@@ -16,6 +16,7 @@
 #include "dealii_includes.h"
 #include "parameters.h"
 #include "phase_field_fracture.h"
+#include "phase_field_fracture_monolithic.h"
 
 int main(int argc, char *argv[]) {
   try {
@@ -44,11 +45,21 @@ int main(int argc, char *argv[]) {
     }
 
     if (params.dim == 2) {
-      PhaseFieldFracture<2> pfm(params);
-      pfm.run();
+      if (params.is_monolithic){
+        PhaseFieldFractureMonolithic<2> pfm(params);
+        pfm.run();
+      } else {
+        PhaseFieldFracture<2> pfm(params);
+        pfm.run();
+      }
     } else if (params.dim == 3) {
-      PhaseFieldFracture<3> pfm(params);
-      pfm.run();
+      if (params.is_monolithic){
+        PhaseFieldFractureMonolithic<3> pfm(params);
+        pfm.run();
+      } else {
+        PhaseFieldFracture<3> pfm(params);
+        pfm.run();
+      }
     }
   } catch (std::exception &exc) {
     std::cerr << std::endl

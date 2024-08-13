@@ -254,9 +254,9 @@ template <int dim> void AbstractMultiphysics<dim>::output_results() {
   ctl.statistics.add_value("Step", ctl.timestep_number);
   ctl.statistics.set_precision("Step", 1);
   ctl.statistics.set_scientific("Step", false);
-  ctl.statistics.add_value("Step Out", ctl.output_timestep_number);
-  ctl.statistics.set_precision("Step Out", 1);
-  ctl.statistics.set_scientific("Step Out", false);
+  ctl.statistics.add_value("Step-Out", ctl.output_timestep_number);
+  ctl.statistics.set_precision("Step-Out", 1);
+  ctl.statistics.set_scientific("Step-Out", false);
   ctl.statistics.add_value("Time", ctl.time);
   ctl.statistics.set_precision("Time", 8);
   ctl.statistics.set_scientific("Time", true);

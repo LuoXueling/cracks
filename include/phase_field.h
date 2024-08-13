@@ -38,8 +38,9 @@ PhaseField<dim>::PhaseField(std::string update_scheme, Controller<dim> &ctl)
 
 template <int dim>
 void PhaseField<dim>::assemble_linear_system(Controller<dim> &ctl) {
-  (this->system_rhs) = 0;
-  (this->system_matrix) = 0;
+  (this->system_rhs).block(this->block_id("phasefield")) = 0;
+  (this->system_matrix)
+      .block(this->block_id("phasefield"), this->block_id("phasefield")) = 0;
 
   FEValues<dim> fe_values((this->fe), ctl.quadrature_formula,
                           update_values | update_gradients |
@@ -153,9 +154,10 @@ template <int dim>
 void PhaseField<dim>::assemble_newton_system(bool residual_only,
                                              LA::MPI::BlockVector &neumann_rhs,
                                              Controller<dim> &ctl) {
-  (this->system_rhs) = 0;
+  (this->system_rhs).block(this->block_id("phasefield")) = 0;
   if (!residual_only) {
-    (this->system_matrix) = 0;
+    (this->system_matrix)
+        .block(this->block_id("phasefield"), this->block_id("phasefield")) = 0;
   }
 
   FEValues<dim> fe_values((this->fe), ctl.quadrature_formula,
@@ -307,15 +309,10 @@ void PhaseField<dim>::output_results(DataOut<dim> &data_out,
   std::vector<DataComponentInterpretation::DataComponentInterpretation>
       data_component_interpretation(
           dim, DataComponentInterpretation::component_is_scalar);
-  data_out.add_data_vector(
-      (this->dof_handler),
-      (this->solution)
-          .block(
-              (this->fields)
-                  .components_to_blocks
-                      [(this->fields).component_start_indices["phasefield"]]),
-      std::vector<std::string>(1, "Phase_field"),
-      data_component_interpretation);
+  data_out.add_data_vector((this->dof_handler),
+                           (this->solution).block(this->block_id("phasefield")),
+                           std::vector<std::string>(1, "Phase_field"),
+                           data_component_interpretation);
   PointHistoryProcessor<dim> hist_processor("Driving force", this->fields,
                                             this->fe, ctl);
   hist_processor.add_data_scalar(this->solution, this->fields, data_out,
@@ -344,7 +341,7 @@ void PhaseField<dim>::enforce_phase_field_limitation(Controller<dim> &ctl) {
     if (cell->is_locally_owned()) {
       cell->get_dof_indices(local_dof_indices);
       for (unsigned int i = 0; i < (this->fe).dofs_per_cell; ++i) {
-        if(!this->dof_is_this_field(i, "phasefield")){
+        if (!this->dof_is_this_field(i, "phasefield")) {
           continue;
         }
         const types::global_dof_index idx = local_dof_indices[i];
