@@ -73,9 +73,7 @@ public:
     throw SolverControl::NoConvergence(0, 0);
   };
   virtual bool give_up(NewtonInformation<dim> &info, Controller<dim> &ctl) {
-    return ((info.residual / info.old_residual > ctl.params.upper_newton_rho) &&
-            (info.i_step > 5)) ||
-           info.i_step == ctl.params.max_no_newton_steps - 1;
+    return info.i_step == ctl.params.max_no_newton_steps - 1;
   };
 };
 

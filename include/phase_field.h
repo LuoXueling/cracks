@@ -307,7 +307,7 @@ void PhaseField<dim>::output_results(DataOut<dim> &data_out,
                                      Controller<dim> &ctl) {
   std::vector<DataComponentInterpretation::DataComponentInterpretation>
       data_component_interpretation(
-          dim, DataComponentInterpretation::component_is_scalar);
+          1, DataComponentInterpretation::component_is_scalar);
   data_out.add_data_vector((this->dof_handler),
                            (this->solution).block(this->block_id("phasefield")),
                            std::vector<std::string>(1, "Phase_field"),
