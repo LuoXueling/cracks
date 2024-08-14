@@ -113,7 +113,7 @@ void Elasticity<dim>::assemble_newton_system(bool residual_only,
 
       for (unsigned int q = 0; q < n_q_points; ++q) {
         // Get history
-        double phasefield = lqph[q]->get("Phase field", 0.0);
+        double phasefield = lqph[q]->get_latest("Phase field");
         double degrade = degradation->value(phasefield, ctl);
 
         // Values of fields and their derivatives
@@ -245,7 +245,7 @@ public:
     std::unique_ptr<Degradation<dim>> degradation =
         select_degradation<dim>(ctl.params.degradation);
     for (unsigned int q = 0; q < ctl.quadrature_formula.size(); ++q) {
-      double phasefield = lqph[q]->get("Phase field", 0.0);
+      double phasefield = lqph[q]->get_latest("Phase field", 0.0);
       double degrade = degradation->value(phasefield, ctl);
 
       const Tensor<2, dim> grad_u = old_displacement_grads[q];
@@ -381,7 +381,7 @@ template <int dim> void Elasticity<dim>::compute_load(Controller<dim> &ctl) {
               ctl.quadrature_point_history.get_data(cell);
           double phasefield = 0;
           for (unsigned int q_point = 0; q_point < n_q_points; ++q_point) {
-            phasefield += lqph[q_point]->get("Phase field", 0.0) / n_q_points;
+            phasefield += lqph[q_point]->get_latest("Phase field", 0.0) / n_q_points;
           }
           double degrade = degradation->value(phasefield, ctl);
 

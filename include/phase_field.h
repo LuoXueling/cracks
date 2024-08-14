@@ -92,7 +92,7 @@ void PhaseField<dim>::assemble_linear_system(Controller<dim> &ctl) {
       const std::vector<std::shared_ptr<PointHistory>> lqph =
           ctl.quadrature_point_history.get_data(cell);
       for (unsigned int q = 0; q < n_q_points; ++q) {
-        double H = lqph[q]->get("Driving force", 0.0);
+        double H = lqph[q]->get_latest("Driving force", 0.0);
         if (ctl.params.phasefield_model == "AT1") {
           H = std::max(H, 3.0 * ctl.params.Gc / (16.0 * ctl.params.l_phi));
         }
@@ -212,7 +212,8 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
           Bphi_kq[k] = fe_values[extractor].gradient(k, q);
         }
 
-        double H = lqph[q]->get("Driving force", 0.0);
+        double H = lqph[q]->get_latest("Driving force", 0.0);
+        lqph[q]->update("Phase field", old_phasefield_values[q]);
         double degrade = degradation->value(old_phasefield_values[q], ctl);
         double degrade_derivative =
             degradation->derivative(old_phasefield_values[q], ctl);
@@ -279,8 +280,6 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
                                fatigue_degrade / (2 * ctl.params.l_phi) * w *
                                    Nphi_kq[i])) *
                          fe_values.JxW(q);
-
-          lqph[q]->update("Phase field", old_phasefield_values[q]);
         }
       }
 

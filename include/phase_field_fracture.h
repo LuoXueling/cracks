@@ -73,13 +73,10 @@ double PhaseFieldFracture<dim>::solve_phase_field_subproblem() {
   (this->ctl).dcout << "Staggered scheme - Solving phase field" << std::endl;
   (this->ctl).computing_timer.enter_subsection("Solve phase field");
   double newton_reduction_phasefield = phasefield.update(this->ctl);
-  (this->ctl).debug_dcout
-      << "Staggered scheme - Solving phase field - point_history" << std::endl;
-  (this->ctl).aggregate_point_history();
-  (this->ctl).debug_dcout
-      << "Staggered scheme - Solving phase field - phase field limitation"
-      << std::endl;
-  phasefield.enforce_phase_field_limitation(this->ctl);
+  //  (this->ctl).debug_dcout
+  //      << "Staggered scheme - Solving phase field - phase field limitation"
+  //      << std::endl;
+  //  phasefield.enforce_phase_field_limitation(this->ctl);
   (this->ctl).computing_timer.leave_subsection("Solve phase field");
   return newton_reduction_phasefield;
 }
@@ -91,7 +88,6 @@ double PhaseFieldFracture<dim>::solve_elasticity_subproblem() {
       << std::endl;
   (this->ctl).computing_timer.enter_subsection("Solve elasticity");
   double newton_reduction_elasticity = elasticity.update(this->ctl);
-  (this->ctl).aggregate_point_history();
   (this->ctl).computing_timer.leave_subsection("Solve elasticity");
   return newton_reduction_elasticity;
 }

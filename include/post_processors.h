@@ -172,7 +172,7 @@ void PointHistoryProcessor<dim>::get_q_scalar_values(
     LA::MPI::BlockVector & /*solution*/, MultiFieldCfg<dim> &fields,
     Controller<dim> &ctl) {
   for (unsigned int q = 0; q < ctl.quadrature_formula.size(); ++q) {
-    data[q] = lqph[q]->get(name, 0.0);
+    data[q] = lqph[q]->get_latest(name, 0.0);
   }
 }
 

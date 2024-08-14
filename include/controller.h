@@ -13,7 +13,23 @@ class PointHistory : public TransferableQuadraturePointData {
 public:
   void update(std::string name, double solution,
               std::string scheme = "latest") {
-    solution_dict_temp[name] = solution;
+    double res;
+    if (scheme == "latest") {
+      res = solution;
+    } else if (scheme == "max") {
+      res = std::max(solution, get_initial(name, -1.0e20));
+    } else if (scheme == "min") {
+      res = std::min(solution, get_initial(name, 1.0e20));
+    } else if (scheme == "accumulate") {
+      res = solution + get_initial(name, 0.0);
+    } else if (scheme == "multiplicative") {
+      res = solution * get_initial(name, 1.0);
+    } else {
+      AssertThrow(false,
+                  ExcNotImplemented("Point history update scheme is illegal."));
+    }
+    solution_increment_buffer[name] = res - get_initial(name, 0.0);
+    solution_buffer[name] = res;
     finalize_scheme[name] = scheme;
   };
   double _get(std::string name, const std::map<std::string, double> &dict,
@@ -30,61 +46,28 @@ public:
       return default_value;
     }
   };
-  double get(std::string name, double default_value = 0.0) const {
-    return _get(name, solution_dict_buffer, default_value);
+  double get_latest(std::string name, double default_value = 0.0) const {
+    return _get(name, solution_buffer, default_value);
   };
   double get_initial(std::string name, double default_value = 0.0) const {
-    return _get(name, solution_dict_initial, default_value);
+    return _get(name, solution_old, default_value);
   };
-  double get_increment(std::string name, double default_value = 0.0) const {
-    return _get(name, solution_increment, default_value);
+  double get_increment_latest(std::string name,
+                              double default_value = 0.0) const {
+    return _get(name, solution_increment_buffer, default_value);
   };
-  void aggregate() {
-    typename std::map<std::string, double>::iterator it;
-    for (it = solution_dict_temp.begin(); it != solution_dict_temp.end();
-         it++) {
-      std::string scheme = finalize_scheme[it->first];
-      double res;
-      if (scheme == "latest") {
-        res = it->second;
-      } else if (scheme == "max") {
-        res = std::max(it->second, get_initial(it->first, -1.0e10));
-      } else if (scheme == "min") {
-        res = std::min(it->second, get_initial(it->first, 1.0e10));
-      } else if (scheme == "accumulate") {
-        res = it->second + get_initial(it->first, 0.0);
-      } else if (scheme == "multiplicative") {
-        res = it->second * get_initial(it->first, 1.0);
-      } else {
-        AssertThrow(false, ExcNotImplemented(
-                               "Point history update scheme is illegal."));
-      }
-      solution_increment[it->first] = res - get_initial(it->first, 0.0);
-      solution_dict_buffer[it->first] = res;
-    }
-  }
+  double get_increment_initial(std::string name,
+                               double default_value = 0.0) const {
+    return _get(name, solution_increment_old, default_value);
+  };
   void finalize() {
     typename std::map<std::string, double>::iterator it;
-    for (it = solution_dict_buffer.begin(); it != solution_dict_buffer.end();
-         it++) {
-      solution_dict_initial[it->first] = it->second;
+    for (it = solution_buffer.begin(); it != solution_buffer.end(); it++) {
+      solution_old[it->first] = it->second;
     }
-    for (it = solution_dict_temp.begin(); it != solution_dict_temp.end();
-         it++) {
-      std::string scheme = finalize_scheme[it->first];
-      if (scheme == "latest") {
-      } else if (scheme == "max") {
-        solution_dict_temp[it->first] = -1.0e10;
-      } else if (scheme == "min") {
-        solution_dict_temp[it->first] = 1.0e10;
-      } else if (scheme == "accumulate") {
-        solution_dict_temp[it->first] = 0.0;
-      } else if (scheme == "multiplicative") {
-        solution_dict_temp[it->first] = 1.0;
-      } else {
-        AssertThrow(false, ExcNotImplemented(
-                               "Point history update scheme is illegal."));
-      }
+    for (it = solution_increment_buffer.begin();
+         it != solution_increment_buffer.end(); it++) {
+      solution_increment_old[it->first] = it->second;
     }
   }
 
@@ -96,9 +79,10 @@ public:
     Assert(values.size() == finalize_scheme.size() * 2, ExcInternalError());
     std::vector<std::string> names = get_names();
     for (unsigned int i = 0; i < finalize_scheme.size() * 2; ++i) {
-      values[i] = i < finalize_scheme.size()
-                      ? get(names[i], 0.0)
-                      : get_increment(names[i - finalize_scheme.size()], 0.0);
+      values[i] =
+          i < finalize_scheme.size()
+              ? get_initial(names[i], 0.0)
+              : get_increment_initial(names[i - finalize_scheme.size()], 0.0);
     }
   }
 
@@ -107,10 +91,13 @@ public:
     std::vector<std::string> names = get_names();
     for (unsigned int i = 0; i < finalize_scheme.size() * 2; ++i) {
       if (i < finalize_scheme.size()) {
-        solution_dict_buffer[names[i]] = values[i];
-        solution_dict_initial[names[i]] = values[i];
-      } else
-        solution_increment[names[i - finalize_scheme.size()]] = values[i];
+        solution_buffer[names[i]] = values[i];
+        solution_old[names[i]] = values[i];
+      } else {
+        solution_increment_buffer[names[i - finalize_scheme.size()]] =
+            values[i];
+        solution_increment_old[names[i - finalize_scheme.size()]] = values[i];
+      }
     }
   }
 
@@ -124,10 +111,10 @@ public:
     return names;
   }
 
-  std::map<std::string, double> solution_dict_temp;
-  std::map<std::string, double> solution_dict_buffer;
-  std::map<std::string, double> solution_dict_initial;
-  std::map<std::string, double> solution_increment;
+  std::map<std::string, double> solution_buffer;
+  std::map<std::string, double> solution_old;
+  std::map<std::string, double> solution_increment_buffer;
+  std::map<std::string, double> solution_increment_old;
 
   inline static std::map<std::string, std::string> finalize_scheme;
 };
@@ -137,7 +124,6 @@ public:
   explicit Controller(Parameters::AllParameters &prms);
 
   void finalize_point_history();
-  void aggregate_point_history();
   void initialize_point_history();
   void record_point_history(
       CellDataStorage<typename Triangulation<dim>::cell_iterator, PointHistory>
@@ -212,18 +198,6 @@ template <int dim> void Controller<dim>::initialize_point_history() {
     }
 }
 
-template <int dim> void Controller<dim>::aggregate_point_history() {
-  const unsigned int n_q_points = quadrature_formula.size();
-  for (const auto &cell : triangulation.active_cell_iterators())
-    if (cell->is_locally_owned()) {
-      const std::vector<std::shared_ptr<PointHistory>> lqph =
-          quadrature_point_history.get_data(cell);
-      for (unsigned int q = 0; q < n_q_points; ++q) {
-        lqph[q]->aggregate();
-      }
-    }
-}
-
 template <int dim> void Controller<dim>::finalize_point_history() {
   const unsigned int n_q_points = quadrature_formula.size();
   for (const auto &cell : triangulation.active_cell_iterators())
@@ -250,10 +224,12 @@ void Controller<dim>::record_point_history(
       const std::vector<std::shared_ptr<PointHistory>> lqph_dst =
           dst.get_data(cell);
       for (unsigned int q = 0; q < n_q_points; ++q) {
-        lqph_dst[q]->solution_dict_buffer = lqph_src[q]->solution_dict_buffer;
-        lqph_dst[q]->solution_dict_initial = lqph_src[q]->solution_dict_initial;
-        lqph_dst[q]->solution_dict_temp = lqph_src[q]->solution_dict_temp;
-        lqph_dst[q]->solution_increment = lqph_src[q]->solution_increment;
+        lqph_dst[q]->solution_buffer = lqph_src[q]->solution_buffer;
+        lqph_dst[q]->solution_old = lqph_src[q]->solution_old;
+        lqph_dst[q]->solution_increment_buffer =
+            lqph_src[q]->solution_increment_buffer;
+        lqph_dst[q]->solution_increment_old =
+            lqph_src[q]->solution_increment_old;
         lqph_dst[q]->finalize_scheme = lqph_src[q]->finalize_scheme;
       }
     }

@@ -39,7 +39,8 @@ public:
                    double degrade, double degrade_derivative,
                    double degrade_second_derivative,
                    Controller<dim> &ctl) override {
-    double dpsi = lqph->get_increment("Positive elastic energy", 0.0) * degrade;
+    double dpsi =
+        lqph->get_increment_latest("Positive elastic energy") * degrade;
     double increm = (dpsi > 0 ? 1.0 : 0.0) * dpsi;
     return increm;
   };
@@ -54,7 +55,7 @@ public:
                    double degrade, double degrade_derivative,
                    double degrade_second_derivative,
                    Controller<dim> &ctl) override {
-    double dpsi = lqph->get_increment("Positive elastic energy", 0.0);
+    double dpsi = lqph->get_increment_latest("Positive elastic energy", 0.0);
     double increm = (dpsi > 0 ? 1.0 : 0.0) * dpsi;
     return increm;
   };
@@ -83,7 +84,7 @@ public:
                    double degrade, double degrade_derivative,
                    double degrade_second_derivative,
                    Controller<dim> &ctl) override {
-    double psi = lqph->get("Positive elastic energy", 0.0);
+    double psi = lqph->get_latest("Positive elastic energy", 0.0);
     double increm = psi * (1 - R * R * (R >= 0 ? 1 : 0));
     return increm;
   };
@@ -121,9 +122,10 @@ public:
     double increm;
     if (n_jumps == 0) {
       // Regular accumulation
-      double psi = lqph->get("Positive elastic energy", 0.0) * degrade;
-      double H = lqph->get("Driving force", 0.0);
-      double alpha_max = std::max(lqph->get("Accumulated increment", 0.0), psi);
+      double psi = lqph->get_latest("Positive elastic energy", 0.0) * degrade;
+      double H = lqph->get_latest("Driving force", 0.0);
+      double alpha_max =
+          std::max(lqph->get_latest("Accumulated increment", 0.0), psi);
       if (H * (1 - R) / 2 > alpha_e) {
         increm = alpha_max * (1 - R) / 2 / alpha_c;
         lqph->update("Accumulated increment", 0.0, "latest");
@@ -134,16 +136,16 @@ public:
       // Determine the number of jumps
       double subcycle = ctl.get_info("Subcycle", 0.0);
       if (subcycle == 2) {
-        lqph->update("y3", lqph->get("Fatigue history", 0.0));
+        lqph->update("y3", lqph->get_initial("Fatigue history", 0.0));
       } else if (subcycle == 3) {
-        double y3 = lqph->get("y3", 0.0);
-        double y2 = lqph->get("Fatigue history", 0.0);
+        double y3 = lqph->get_initial("y3", 0.0);
+        double y2 = lqph->get_initial("Fatigue history", 0.0);
         lqph->update("y2", y2);
         lqph->update("s23", y2 - y3);
       } else if (subcycle == 4) {
-        double s23 = lqph->get("s23", 0.0);
-        double y1 = lqph->get("Fatigue history", 0.0);
-        double y2 = lqph->get("y2", 0.0);
+        double s23 = lqph->get_initial("s23", 0.0);
+        double y1 = lqph->get_initial("Fatigue history", 0.0);
+        double y2 = lqph->get_initial("y2", 0.0);
         double s12 = y1 - y2;
         lqph->update("s12", s12);
         double max_jump = ctl.get_info("Maximum jump", 1.0e8);
@@ -155,8 +157,8 @@ public:
         ctl.set_info("N jump local", n_jump_local);
       }
     } else {
-      double s12 = lqph->get("s12", 0.0);
-      double s23 = lqph->get("s23", 0.0);
+      double s12 = lqph->get_initial("s12", 0.0);
+      double s23 = lqph->get_initial("s23", 0.0);
       increm = s12 * n_jumps + (s12 - s23) * std::pow(n_jumps, 2) / 2.0;
     }
     return increm;
@@ -180,8 +182,9 @@ public:
                    double degrade, double degrade_derivative,
                    double degrade_second_derivative,
                    Controller<dim> &ctl) override {
-    double dpsi = lqph->get_increment("Positive elastic energy", 0.0) * degrade;
-    double psi = lqph->get("Positive elastic energy", 0.0) * degrade;
+    double dpsi =
+        lqph->get_increment_latest("Positive elastic energy", 0.0) * degrade;
+    double psi = lqph->get_latest("Positive elastic energy", 0.0) * degrade;
     double increm = (dpsi > 0 ? 1.0 : 0.0) * dpsi * psi / alpha_n;
     return increm;
   };
@@ -234,7 +237,7 @@ public:
                            Controller<dim> &ctl) override {
 
     double degrade;
-    double alpha = lqph->get("Fatigue history", 0.0);
+    double alpha = lqph->get_latest("Fatigue history", 0.0);
     if (alpha <= alpha_t) {
       degrade = 1;
     } else {
@@ -270,7 +273,7 @@ public:
   double degradation_value(const std::shared_ptr<PointHistory> &lqph,
                            double phasefield, double phasefield_degrade,
                            Controller<dim> &ctl) override {
-    double alpha = lqph->get("Fatigue history", 0.0);
+    double alpha = lqph->get_latest("Fatigue history", 0.0);
     double degrade = std::pow(alpha_t / (alpha + alpha_t), 2);
     return degrade;
   };
