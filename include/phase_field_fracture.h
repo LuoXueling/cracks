@@ -99,8 +99,21 @@ double PhaseFieldFracture<dim>::solve_elasticity_subproblem() {
 template <int dim> double PhaseFieldFracture<dim>::staggered_scheme() {
   if ((this->ctl).params.enable_phase_field) {
     double newton_reduction_elasticity = 0, newton_reduction_phasefield = 0;
-    newton_reduction_elasticity = solve_elasticity_subproblem();
-    newton_reduction_phasefield = solve_phase_field_subproblem();
+    double phasefield_residual;
+    for (unsigned int cnt = 0; cnt < (this->ctl).params.max_multipass; ++cnt) {
+      newton_reduction_phasefield = solve_phase_field_subproblem();
+      newton_reduction_elasticity = solve_elasticity_subproblem();
+      if ((this->ctl).params.multipass_staggered) {
+        phasefield.update_newton_residual(this->ctl);
+        phasefield_residual = phasefield.system_rhs.linfty_norm();
+        (this->ctl).dcout << "Phase field residual: " << phasefield_residual
+                          << std::endl;
+        if (phasefield_residual < (this->ctl.params).multipass_residual_tol)
+          break;
+      } else {
+        break;
+      }
+    }
     return std::max(newton_reduction_elasticity, newton_reduction_phasefield);
   } else {
     return solve_elasticity_subproblem();

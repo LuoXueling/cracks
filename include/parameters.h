@@ -78,6 +78,9 @@ struct Runtime {
   std::string modified_newton_parameters;
   unsigned int max_adjustment_steps;
   bool is_monolithic;
+  bool multipass_staggered;
+  unsigned int max_multipass;
+  double multipass_residual_tol;
   std::string phase_field_scheme;
   std::string decomposition;
   double constant_k;
@@ -129,6 +132,13 @@ void Runtime::subsection_declare_parameters(ParameterHandler &prm) {
     prm.declare_entry("Line search damping", "0.5", Patterns::Double(0));
 
     prm.declare_entry("Use monolithic", "false", Patterns::Bool());
+
+    prm.declare_entry("Use multipass staggered", "false", Patterns::Bool());
+    prm.declare_entry("Maximum number of multipass steps", "5",
+                      Patterns::Integer(0));
+    prm.declare_entry("Residual tolerance of multipass", "1e-8",
+                      Patterns::Double(0));
+
     prm.declare_entry("Phase field update", "newton",
                       Patterns::Selection("newton|linear"));
 
@@ -172,6 +182,11 @@ void Runtime::subsection_parse_parameters(ParameterHandler &prm) {
     modified_newton_parameters = prm.get("Parameters of modified newton");
 
     is_monolithic = prm.get_bool("Use monolithic");
+
+    multipass_staggered = prm.get_bool("Use multipass staggered");
+    max_multipass = prm.get_integer("Maximum number of multipass steps");
+    multipass_residual_tol = prm.get_double("Residual tolerance of multipass");
+
     phase_field_scheme = prm.get("Phase field update");
     decomposition = prm.get("Decomposition");
 

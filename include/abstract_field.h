@@ -444,7 +444,6 @@ double AbstractField<dim>::update_newton_system(Controller<dim> &ctl) {
             << std::endl;
         assemble_newton_system(true, neumann_rhs, ctl);
       }
-
       newton_info.new_residual = system_rhs.linfty_norm();
 
       if (newton_ctl->quit_adjustment(newton_info, ctl)) {
@@ -498,7 +497,7 @@ template <int dim>
 unsigned int AbstractField<dim>::solve(NewtonInformation<dim> &info,
                                        Controller<dim> &ctl) {
   SolverControl solver_control((this->dof_handler).n_dofs(),
-                               1e-8 * this->system_rhs.l2_norm());
+                               1e-10 * this->system_rhs.l2_norm());
   ctl.debug_dcout << "Solve Newton system - Newton iteration - solve linear "
                      "system - preconditioner"
                   << std::endl;
