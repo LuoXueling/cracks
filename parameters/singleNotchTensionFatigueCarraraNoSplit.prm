@@ -1,6 +1,6 @@
 subsection Project
   set Project name = singleNotchTensionFatigueCarrara
-  set Mesh from = ../meshes/singleNotchCoarse.inp
+  set Mesh from = ../meshes/singleNotchDense0008.inp
   set Boundary from = ../meshes/singleNotchTensionCyclicCarrara_boundary.txt
   set Output directory = ../output/
   set Load sequence from = script
@@ -13,21 +13,31 @@ end
 
 subsection Runtime
   # Time step
-  set Max No of timesteps = 2000
+  set Adaptive timestep = constant
+  set Max No of timesteps = 1600
   set Timestep size = 0.25
   set Timestep size to switch to = 0.25
   set Switch timestep after steps = 0
 
   # Solver
-  set Use Direct Inner Solver = false
-  set Newton lower bound = 1.0e-6
+  set Use Direct Inner Solver = true
+  set Newton lower bound = 1.0e-8
   set Newton maximum steps = 50
   set Upper Newton rho = 0.999
   set Maximum number of adjustment steps of Newton solution = 10
-  set Line search damping = 0.5
   set Save vtk per step = 4
 
+  set Adjustment method = KristensenModifiedNewton
+  set Adjustment method for elasticity = KristensenModifiedNewton
+  set Parameters of line search = 0.2
+  set Parameters of modified newton = 4 2
+
   # Phase field scheme
+  set Use monolithic = false
+  set Use multipass staggered = true
+  set Maximum number of multipass steps = 5
+  set Residual tolerance of multipass = 1e-6
+
   # "linear" to solve K_phi * phi = r_phi
   # "newton" to solve K_phi * delta phi = r_phi, phi = phi - delta phi
   set Phase field update = newton
@@ -62,7 +72,7 @@ subsection Finite element system
   set Quadrature order  = 3
 
   # Mesh refinement
-  set Refine = true
+  set Refine = false
 
   # During nucleation of cracks, the diffused crack is
   # phi*exp(-|x|/l_phi), and the absolute gradient field is
