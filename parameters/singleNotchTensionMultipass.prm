@@ -1,11 +1,10 @@
 subsection Project
-  set Project name = CojocaruSEVNT2
-  set Mesh from = ../meshes/SEVNT2.inp
-  set Boundary from = ../meshes/CojocaruSEVNT2_boundary.txt
+  set Project name = singleNotchTension
+  set Mesh from = ../meshes/singleNotchRaw.inp
+  set Boundary from = ../meshes/singleNotchTension_boundary.txt
   set Output directory = ../output/
   set Load sequence from = script
   set Enable phase field = true
-  set Enable fatigue = true
 
   # Debug
   set Debug output = false
@@ -13,39 +12,35 @@ end
 
 subsection Runtime
   # Time step
-  set Adaptive timestep = CojocaruCycleJump
-  set Adaptive timestep parameters = 0 1 100
-  set Max No of timesteps = 12000
-  set Timestep size = 0.25
-  set Timestep size to switch to = 0.5
-  set Switch timestep after steps = 0
+  set Max No of timesteps = 2000
+  set Timestep size = 1.0e-5
+  set Timestep size to switch to = 1.0e-6
+  set Switch timestep after steps = 500
 
   # Solver
-  set Use Direct Inner Solver = true
+  set Use Direct Inner Solver = false
   set Newton lower bound = 1.0e-6
   set Newton maximum steps = 50
   set Upper Newton rho = 0.999
   set Maximum number of adjustment steps of Newton solution = 10
-
-  set Adjustment method = KristensenModifiedNewton
-  set Adjustment method for elasticity = KristensenModifiedNewton
-  set Parameters of line search = 0.1
-  set Parameters of modified newton = 5 10
-
+  set Line search damping = 0.5
   set Save vtk per step = 10
 
   # Phase field scheme
   set Use monolithic = false
-  set Use multipass staggered = false
+  set Use multipass staggered = true
+  set Maximum number of multipass steps = 50
+  set Residual tolerance of multipass = 1e-6
 
   # "linear" to solve K_phi * phi = r_phi
   # "newton" to solve K_phi * delta phi = r_phi, phi = phi - delta phi
   set Phase field update = newton
+
   # "none" for no decomposition (degradation acts on the entire residual and the tangent stiffness matrix)
   # "eigen" for eigen decomposition (http://dx.doi.org/10.1016/j.commatsci.2016.04.009)
   # "hybrid" for hybrid decomposition with eigen decomposition acting on residual (https://doi.org/10.1007/s00466-014-1109-y) (https://doi.org/10.1016/j.cma.2022.115535)
   # "sphere" for spherical decompostion (volumetric and deviatoric parts) (https://doi.org/10.1016/j.jmps.2009.04.011)
-  set Decomposition = hybridnotension
+  set Decomposition = hybrid
 
   # Numerical
   set Constant small quantity k = 1.0e-6
@@ -54,14 +49,9 @@ end
 subsection Material
     set Young's modulus = 210000
     set Poisson's ratio = 0.3
-    set Critical energy release rate = 48
-    set Phase field length scale = 0.3
-    set Phase field model = AT1
+    set Critical energy release rate = 2.7
+    set Phase field length scale = 0.015
     set Plane state = strain
-    set Fatigue degradation = CojocaruAsymptotic
-    set Fatigue degradation parameters = 10.0
-    set Fatigue accumulation = CojocaruCLA
-    set Fatigue accumulation parameters = 0 10 275.0 15.0
 end
 
 subsection Finite element system
@@ -75,7 +65,7 @@ subsection Finite element system
   set Quadrature order  = 3
 
   # Mesh refinement
-  set Refine = false
+  set Refine = true
 
   # During nucleation of cracks, the diffused crack is
   # phi*exp(-|x|/l_phi), and the absolute gradient field is

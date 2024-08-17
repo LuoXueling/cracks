@@ -63,13 +63,11 @@ public:
       }
     }
   };
-  virtual void prepare_next_adjustment(LA::MPI::BlockVector &negative_increment,
-                                       LA::MPI::BlockVector &solution,
-                                       LA::MPI::BlockSparseMatrix &system_matrix,
-                                       LA::MPI::BlockVector &system_rhs,
-                                       LA::MPI::BlockVector &neumann_rhs,
-                                       NewtonInformation<dim> &info,
-                                       Controller<dim> &ctl) {
+  virtual void prepare_next_adjustment(
+      LA::MPI::BlockVector &negative_increment, LA::MPI::BlockVector &solution,
+      LA::MPI::BlockSparseMatrix &system_matrix,
+      LA::MPI::BlockVector &system_rhs, LA::MPI::BlockVector &neumann_rhs,
+      NewtonInformation<dim> &info, Controller<dim> &ctl) {
     throw SolverControl::NoConvergence(0, 0);
   };
   virtual bool give_up(NewtonInformation<dim> &info, Controller<dim> &ctl) {
@@ -77,11 +75,52 @@ public:
   };
 };
 
-template <int dim>
-class KristensenModifiedNewton : public NewtonVariation<dim> {
+/*
+ * https://www.sciencedirect.com/science/article/pii/S2590037420300054#sec1
+ * Newton-Anderson(1) from https://doi.org/10.1145/321296.321305
+ */
+template <int dim> class AndersonNewton : public NewtonVariation<dim> {
+public:
+  AndersonNewton(Controller<dim> &ctl): NewtonVariation<dim>(ctl){};
+  void apply_increment(LA::MPI::BlockVector &negative_increment,
+                       LA::MPI::BlockVector &solution,
+                       LA::MPI::BlockSparseMatrix &system_matrix,
+                       LA::MPI::BlockVector &system_rhs,
+                       LA::MPI::BlockVector &neumann_rhs,
+                       NewtonInformation<dim> &info,
+                       Controller<dim> &ctl) override {
+    if (info.i_step == 1) {
+      last_solution = solution;
+      solution -= negative_increment;
+    } else {
+      LA::MPI::BlockVector increment_diff = last_negative_increment;
+      increment_diff -= negative_increment;
+      double gamma =
+          negative_increment * increment_diff / increment_diff.l2_norm() * (-1);
+
+      LA::MPI::BlockVector solution_diff = solution;
+      solution_diff -= last_solution;
+      last_solution = solution;
+
+      solution_diff += increment_diff;
+      solution_diff *= gamma;
+      LA::MPI::BlockVector anderson_increment = negative_increment;
+      anderson_increment += solution_diff;
+
+      solution -= anderson_increment;
+    }
+
+    last_negative_increment = negative_increment;
+  };
+
+  LA::MPI::BlockVector last_solution;
+  LA::MPI::BlockVector last_negative_increment;
+};
+
+template <int dim> class KristensenModifiedNewton : public AndersonNewton<dim> {
 public:
   KristensenModifiedNewton(Controller<dim> &ctl)
-      : NewtonVariation<dim>(ctl), record_c(0), record_i(0), ever_built(false) {
+      : AndersonNewton<dim>(ctl), record_c(0), record_i(0), ever_built(false) {
     AssertThrow(ctl.params.linesearch_parameters != "",
                 ExcInternalError("No parameters assigned to modified newton."));
     std::istringstream iss(ctl.params.modified_newton_parameters);
@@ -114,10 +153,6 @@ public:
       ctl.debug_dcout << "Forbid rebuilding system matrix" << std::endl;
       return false;
     };
-  };
-
-  bool give_up(NewtonInformation<dim> &info, Controller<dim> &ctl) override {
-    return info.i_step == ctl.params.max_no_newton_steps - 1;
   };
 
   double n_i; // One of the subproblems fails to converge in n_i inner Newton
@@ -165,6 +200,8 @@ select_newton_variation(std::string method, Controller<dim> &ctl) {
     return std::make_unique<NewtonVariation<dim>>(ctl);
   else if (method == "linesearch")
     return std::make_unique<LineSearch<dim>>(ctl);
+  else if (method == "AndersonNewton")
+    return std::make_unique<AndersonNewton<dim>>(ctl);
   else if (method == "KristensenModifiedNewton")
     return std::make_unique<KristensenModifiedNewton<dim>>(ctl);
   else

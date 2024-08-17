@@ -81,6 +81,7 @@ struct Runtime {
   bool multipass_staggered;
   unsigned int max_multipass;
   double multipass_residual_tol;
+  bool quit_multipass_if_increase;
   std::string phase_field_scheme;
   std::string decomposition;
   double constant_k;
@@ -120,7 +121,7 @@ void Runtime::subsection_declare_parameters(ParameterHandler &prm) {
 
     prm.declare_entry(
         "Adjustment method for elasticity", "linesearch",
-        Patterns::Selection("none|linesearch|KristensenModifiedNewton"));
+        Patterns::Selection("none|linesearch|AndersonNewton|KristensenModifiedNewton"));
 
     prm.declare_entry("Parameters of line search", "0.1", Patterns::Anything());
     prm.declare_entry("Parameters of modified newton", "",
@@ -138,6 +139,7 @@ void Runtime::subsection_declare_parameters(ParameterHandler &prm) {
                       Patterns::Integer(0));
     prm.declare_entry("Residual tolerance of multipass", "1e-8",
                       Patterns::Double(0));
+    prm.declare_entry("Quit multipass if residual increasing", "true", Patterns::Bool());
 
     prm.declare_entry("Phase field update", "newton",
                       Patterns::Selection("newton|linear"));
@@ -186,6 +188,7 @@ void Runtime::subsection_parse_parameters(ParameterHandler &prm) {
     multipass_staggered = prm.get_bool("Use multipass staggered");
     max_multipass = prm.get_integer("Maximum number of multipass steps");
     multipass_residual_tol = prm.get_double("Residual tolerance of multipass");
+    quit_multipass_if_increase = prm.get_bool("Quit multipass if residual increasing");
 
     phase_field_scheme = prm.get("Phase field update");
     decomposition = prm.get("Decomposition");

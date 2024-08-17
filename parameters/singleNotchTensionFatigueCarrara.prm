@@ -35,8 +35,9 @@ subsection Runtime
   # Phase field scheme
   set Use monolithic = false
   set Use multipass staggered = true
-  set Maximum number of multipass steps = 5
-  set Residual tolerance of multipass = 1e-6
+  set Maximum number of multipass steps = 50
+  set Residual tolerance of multipass = 1e-8
+  set Quit multipass if residual increasing = false
 
   # "linear" to solve K_phi * phi = r_phi
   # "newton" to solve K_phi * delta phi = r_phi, phi = phi - delta phi
