@@ -483,7 +483,8 @@ double AbstractField<dim>::update_newton_system(Controller<dim> &ctl) {
 
     // Terminate if nothing is solved anymore. After this,
     // we cut the time step.
-    if (newton_ctl->give_up(newton_info, ctl)) {
+    if (newton_ctl->give_up(newton_info, ctl) || newton_info.residual > 1e50 ||
+        newton_info.residual != newton_info.residual) {
       ctl.dcout << "Newton iteration did not converge in " << newton_info.i_step
                 << " steps. Go to adaptive time stepping" << std::endl;
       throw SolverControl::NoConvergence(0, 0);
