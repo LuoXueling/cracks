@@ -117,10 +117,10 @@ public:
   LA::MPI::BlockVector last_negative_increment;
 };
 
-template <int dim> class KristensenModifiedNewton : public AndersonNewton<dim> {
+template <int dim> class KristensenModifiedNewton : public NewtonVariation<dim> {
 public:
   KristensenModifiedNewton(Controller<dim> &ctl)
-      : AndersonNewton<dim>(ctl), record_c(0), record_i(0), ever_built(false) {
+      : NewtonVariation<dim>(ctl), record_c(0), record_i(0), ever_built(false) {
     AssertThrow(ctl.params.linesearch_parameters != "",
                 ExcInternalError("No parameters assigned to modified newton."));
     std::istringstream iss(ctl.params.modified_newton_parameters);
