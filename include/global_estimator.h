@@ -1,0 +1,53 @@
+//
+// Created by xlluo on 24-8-17.
+//
+
+#ifndef CRACKS_GLOBAL_ESTIMATOR_H
+#define CRACKS_GLOBAL_ESTIMATOR_H
+
+#include "controller.h"
+#include "dealii_includes.h"
+
+namespace GlobalEstimator {
+template <int dim>
+double sum(std::string name, double default_value, Controller<dim> &ctl) {
+  DoFHandler<dim> dof_handler(ctl.triangulation);
+  const unsigned int n_q_points = ctl.quadrature_formula.size();
+
+  double local_integration = 0.0;
+  for (const auto &cell : dof_handler.active_cell_iterators()) {
+    if (cell->is_locally_owned()) {
+      const std::vector<std::shared_ptr<PointHistory>> lqph =
+          ctl.quadrature_point_history.get_data(cell);
+      for (unsigned int q = 0; q < n_q_points; ++q) {
+        local_integration += lqph[q]->get_latest(name, default_value);
+      }
+    }
+  }
+  double global_integration =
+      Utilities::MPI::sum(local_integration, ctl.mpi_com);
+  return global_integration;
+}
+
+template <int dim>
+double max(std::string name, double default_value, Controller<dim> &ctl) {
+  DoFHandler<dim> dof_handler(ctl.triangulation);
+  const unsigned int n_q_points = ctl.quadrature_formula.size();
+
+  double local_max = 0.0;
+  for (const auto &cell : dof_handler.active_cell_iterators()) {
+    if (cell->is_locally_owned()) {
+      const std::vector<std::shared_ptr<PointHistory>> lqph =
+          ctl.quadrature_point_history.get_data(cell);
+      for (unsigned int q = 0; q < n_q_points; ++q) {
+        local_max =
+            std::max(lqph[q]->get_latest(name, default_value), local_max);
+      }
+    }
+  }
+  double global_max = Utilities::MPI::max(local_max, ctl.mpi_com);
+  return global_max;
+}
+}; // namespace GlobalEstimator
+
+#endif // CRACKS_GLOBAL_ESTIMATOR_H
