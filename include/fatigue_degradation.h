@@ -166,6 +166,40 @@ public:
   double R, alpha_c, alpha_t, Se, alpha_e, q_jump;
 };
 
+template <int dim> class JonasAccumulation : public FatigueAccumulation<dim> {
+public:
+  JonasAccumulation(Controller<dim> &ctl) : FatigueAccumulation<dim>(ctl){};
+  double increment(const std::shared_ptr<PointHistory> &lqph, double phasefield,
+                   double degrade, double degrade_derivative,
+                   double degrade_second_derivative,
+                   Controller<dim> &ctl) override {
+    int n_jumps = static_cast<int>(ctl.get_info("N jump", 0.0));
+    double increm = 0;
+    double subcycle = ctl.get_info("Subcycle", 0.0);
+    double trial_cycle = ctl.get_info("Trial cycle", 0.0);
+    if (std::fmod(subcycle, 1) < 1e-8 && subcycle < 5 && subcycle > 1e-8) {
+      // y1, y2, y3, and y4
+      lqph->update(
+          "y" + std::to_string(static_cast<unsigned int>(std::round(subcycle))),
+          lqph->get_latest("Fatigue history", 0.0));
+    }
+    if (n_jumps == 0 && std::abs(trial_cycle) < 1e-8) {
+      // Regular accumulation
+      double dpsi =
+          lqph->get_increment_latest("Positive elastic energy") * degrade;
+      increm = (dpsi > 0 ? 1.0 : 0.0) * dpsi;
+    } else if (n_jumps > 0) {
+      double y1 = lqph->get_initial("y1", 0.0);
+      double y2 = lqph->get_initial("y2", 0.0);
+      double y3 = lqph->get_initial("y3", 0.0);
+      double y4 = lqph->get_initial("y4", 0.0);
+      increm = 1.0 / 6 * (-2 * y1 + 9 * y2 - 18 * y3 + 11 * y4) * n_jumps +
+               0.5 * (-y1 + 4 * y2 - 5 * y3 + 2 * y4) * std::pow(n_jumps, 2);
+    }
+    return increm;
+  };
+};
+
 template <int dim>
 class CarraraMeanEffectAccumulation : public FatigueAccumulation<dim> {
 public:
@@ -206,6 +240,8 @@ select_fatigue_accumulation(std::string method, Controller<dim> &ctl) {
     return std::make_unique<KristensenCLAAccumulation<dim>>(ctl);
   else if (method == "CojocaruCLA")
     return std::make_unique<CojocaruCLAAccumulation<dim>>(ctl);
+  else if (method == "Jonas")
+    return std::make_unique<JonasAccumulation<dim>>(ctl);
   else
     AssertThrow(false, ExcNotImplemented());
 }

@@ -13,7 +13,8 @@ end
 
 subsection Runtime
   # Time step
-  set Adaptive timestep = constant
+  set Adaptive timestep = JonasCycleJump
+  set Adaptive timestep parameters = 0 1 0.95 1
   set Max No of timesteps = 5000
   set Timestep size = 0.25
   set Timestep size to switch to = 0.25
@@ -59,7 +60,7 @@ subsection Material
     set Phase field length scale = 0.2
     set Plane state = stress
     set Fatigue degradation = CarraraAsymptotic
-    set Fatigue accumulation = CarraraNoMeanEffect
+    set Fatigue accumulation = Jonas
 end
 
 subsection Finite element system

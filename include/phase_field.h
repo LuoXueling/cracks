@@ -96,6 +96,9 @@ void PhaseField<dim>::assemble_linear_system(Controller<dim> &ctl) {
         if (ctl.params.phasefield_model == "AT1") {
           H = std::max(H, 3.0 * ctl.params.Gc / (16.0 * ctl.params.l_phi));
         }
+        lqph[q]->update("Phase field", old_phasefield_values[q]);
+        lqph[q]->update("Phase field JxW",
+                        old_phasefield_values[q] * fe_values.JxW(q));
 
         // Values of fields and their derivatives
         for (unsigned int k = 0; k < dofs_per_cell; ++k) {
@@ -132,8 +135,6 @@ void PhaseField<dim>::assemble_linear_system(Controller<dim> &ctl) {
             AssertThrow(false,
                         ExcNotImplemented("Phase field model not available."));
           }
-
-          lqph[q]->update("Phase field", old_phasefield_values[q]);
         }
       }
 
@@ -214,6 +215,8 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
 
         double H = lqph[q]->get_latest("Driving force", 0.0);
         lqph[q]->update("Phase field", old_phasefield_values[q]);
+        lqph[q]->update("Phase field JxW",
+                        old_phasefield_values[q] * fe_values.JxW(q));
         double degrade = degradation->value(old_phasefield_values[q], ctl);
         double degrade_derivative =
             degradation->derivative(old_phasefield_values[q], ctl);
