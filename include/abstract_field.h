@@ -49,6 +49,8 @@ public:
   virtual void setup_system(Controller<dim> &ctl);
   virtual void record_old_solution(Controller<dim> &ctl);
   virtual void return_old_solution(Controller<dim> &ctl);
+  virtual void record_checkpoint(Controller<dim> &ctl);
+  virtual void return_checkpoint(Controller<dim> &ctl);
   virtual void distribute_hanging_node_constraints(LA::MPI::BlockVector &vector,
                                                    Controller<dim> &ctl);
   virtual void distribute_all_constraints(LA::MPI::BlockVector &vector,
@@ -91,7 +93,7 @@ public:
    * Solutions
    */
   LA::MPI::BlockSparseMatrix system_matrix;
-  LA::MPI::BlockVector solution, newton_update, old_solution;
+  LA::MPI::BlockVector solution, newton_update, old_solution, solution_checkpoint;
   //  LA::MPI::BlockVector system_total_residual;
   LA::MPI::BlockVector system_rhs;
   LA::MPI::BlockVector neumann_rhs;
@@ -190,14 +192,16 @@ template <int dim> void AbstractField<dim>::setup_system(Controller<dim> &ctl) {
   {
     // solution has ghost elements.
     solution.reinit(fields_locally_relevant_dofs);
+    solution_checkpoint.reinit(fields_locally_relevant_dofs);
+    old_solution.reinit(fields_locally_relevant_dofs);
+    solution = 0;
+    old_solution = solution;
+    solution_checkpoint = solution;
     // system_rhs, system_matrix, and the solution vector system_solution do not
     // have ghost elements
     system_solution.reinit(fields_locally_owned_dofs);
     system_rhs.reinit(fields_locally_owned_dofs);
     neumann_rhs.reinit(fields_locally_owned_dofs);
-    solution = 0;
-    old_solution.reinit(fields_locally_relevant_dofs);
-    old_solution = solution;
     // Initialize fields. Trilino does not allow writing into its parallel
     // vector.
     //    VectorTools::interpolate(dof_handler, ZeroFunction<dim>(dim),
@@ -576,6 +580,16 @@ void AbstractField<dim>::return_old_solution(Controller<dim> &ctl) {
 template <int dim>
 void AbstractField<dim>::record_old_solution(Controller<dim> &ctl) {
   old_solution = solution;
+}
+
+template <int dim>
+void AbstractField<dim>::return_checkpoint(Controller<dim> &ctl) {
+  solution = solution_checkpoint;
+}
+
+template <int dim>
+void AbstractField<dim>::record_checkpoint(Controller<dim> &ctl) {
+  solution_checkpoint = solution;
 }
 
 template <int dim>

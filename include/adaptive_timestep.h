@@ -41,6 +41,14 @@ public:
     }
   }
 
+  virtual bool save_checkpoint(Controller<dim> &ctl){
+    return false;
+  }
+
+  virtual std::string return_solution_or_checkpoint(Controller<dim> &ctl){
+    return "solution";
+  }
+
   void record(Controller<dim> &ctl) { count_reduction++; }
 
   virtual void failure_criteria(double new_timestep, Controller<dim> &ctl) {

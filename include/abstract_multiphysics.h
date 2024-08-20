@@ -33,6 +33,8 @@ private:
   virtual void return_old_solution() {
     AssertThrow(false, ExcNotImplemented());
   };
+  virtual void record_checkpoint() { AssertThrow(false, ExcNotImplemented()); };
+  virtual void return_checkpoint() { AssertThrow(false, ExcNotImplemented()); };
   virtual double staggered_scheme() {
     AssertThrow(false, ExcNotImplemented());
   };
@@ -127,7 +129,15 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
           newton_reduction = staggered_scheme();
           while (newton_reduction > ctl.params.upper_newton_rho) {
             time_stepping->execute_when_fail(ctl);
-            return_old_solution();
+            std::string solution_or_checkpoint =
+                time_stepping->return_solution_or_checkpoint(ctl);
+            if (solution_or_checkpoint == "solution") {
+              ctl.dcout << "Returning previous solution" << std::endl;
+              return_old_solution();
+            } else if (solution_or_checkpoint == "checkpoint") {
+              ctl.dcout << "Returning the last checkpoint" << std::endl;
+              return_checkpoint();
+            }
             newton_reduction = staggered_scheme();
           }
 
@@ -137,7 +147,15 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
           ctl.dcout << "Solver did not converge! Adjusting time step."
                     << std::endl;
           time_stepping->execute_when_fail(ctl);
-          return_old_solution();
+          std::string solution_or_checkpoint =
+              time_stepping->return_solution_or_checkpoint(ctl);
+          if (solution_or_checkpoint == "solution") {
+            ctl.dcout << "Returning previous solution" << std::endl;
+            return_old_solution();
+          } else if (solution_or_checkpoint == "checkpoint") {
+            ctl.dcout << "Returning the last checkpoint" << std::endl;
+            return_checkpoint();
+          }
         }
       } while (true);
     }
@@ -150,6 +168,11 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
     // Recover time step
     ctl.current_timestep = tmp_current_timestep;
     ctl.timer.leave_subsection("Solve Newton system");
+    // Whether to save checkpoints
+    if (time_stepping->save_checkpoint(ctl)) {
+      ctl.dcout << "Saving checkpoint" << std::endl;
+      record_checkpoint();
+    }
     // Refine mesh.
     if (ctl.params.refine) {
       ctl.dcout << "Refining mesh" << std::endl;

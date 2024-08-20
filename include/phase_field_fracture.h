@@ -26,6 +26,8 @@ private:
   bool refine_grid() override;
   void record_old_solution() override;
   void return_old_solution() override;
+  void record_checkpoint() override;
+  void return_checkpoint() override;
   double staggered_scheme() override;
   double solve_phase_field_subproblem();
   double solve_elasticity_subproblem();
@@ -65,6 +67,24 @@ template <int dim> void PhaseFieldFracture<dim>::return_old_solution() {
   elasticity.return_old_solution(this->ctl);
   if ((this->ctl).params.enable_phase_field) {
     phasefield.return_old_solution(this->ctl);
+  }
+}
+
+template <int dim> void PhaseFieldFracture<dim>::record_checkpoint() {
+  (this->ctl).record_point_history((this->ctl).quadrature_point_history,
+                                   (this->ctl).quadrature_point_history_checkpoint);
+  elasticity.record_checkpoint(this->ctl);
+  if ((this->ctl).params.enable_phase_field) {
+    phasefield.record_checkpoint(this->ctl);
+  }
+}
+
+template <int dim> void PhaseFieldFracture<dim>::return_checkpoint() {
+  (this->ctl).record_point_history((this->ctl).quadrature_point_history_checkpoint,
+                                   (this->ctl).quadrature_point_history);
+  elasticity.return_checkpoint(this->ctl);
+  if ((this->ctl).params.enable_phase_field) {
+    phasefield.return_checkpoint(this->ctl);
   }
 }
 

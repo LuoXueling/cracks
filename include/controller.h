@@ -149,7 +149,7 @@ public:
 
   double time;
   unsigned int timestep_number;
-  unsigned int output_timestep_number;
+  int output_timestep_number;
   int last_refinement_timestep_number;
   double current_timestep;
   double old_timestep;
@@ -159,7 +159,8 @@ public:
   std::vector<int> boundary_ids;
 
   CellDataStorage<typename Triangulation<dim>::cell_iterator, PointHistory>
-      quadrature_point_history, old_quadrature_point_history;
+      quadrature_point_history, old_quadrature_point_history,
+      quadrature_point_history_checkpoint;
 
   std::map<std::string, double> info_center;
 };
@@ -194,6 +195,8 @@ template <int dim> void Controller<dim>::initialize_point_history() {
       quadrature_point_history.template initialize<PointHistory>(
           cell, quadrature_formula.size());
       old_quadrature_point_history.template initialize<PointHistory>(
+          cell, quadrature_formula.size());
+      quadrature_point_history_checkpoint.template initialize<PointHistory>(
           cell, quadrature_formula.size());
     }
 }
