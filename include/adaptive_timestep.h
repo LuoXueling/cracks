@@ -11,33 +11,46 @@
 
 template <int dim> class AdaptiveTimeStep {
 public:
-  AdaptiveTimeStep(Controller<dim> &ctl) : last_time(0), count_reduction(0){};
+  AdaptiveTimeStep(Controller<dim> &ctl)
+      : last_time(0), count_reduction(0), save_results(false),
+        new_timestep(ctl.current_timestep){};
 
   virtual void initialize_timestep(Controller<dim> &ctl) {};
+
+  double get_timestep(Controller<dim> &ctl) {
+    last_time = ctl.time;
+    new_timestep = current_timestep(ctl);
+    return new_timestep;
+  }
 
   virtual double current_timestep(Controller<dim> &ctl) {
     return ctl.current_timestep;
   }
 
   void execute_when_fail(Controller<dim> &ctl) {
-    ctl.time -= ctl.current_timestep;
+    ctl.time = last_time;
     check_time(ctl);
-    double new_timestep = get_new_timestep_when_fail(ctl);
-    failure_criteria(new_timestep, ctl);
-    ctl.current_timestep = new_timestep;
+    new_timestep = get_new_timestep_when_fail(ctl);
+    failure_criteria(ctl);
     record(ctl);
-    ctl.time += ctl.current_timestep;
+    ctl.time += new_timestep;
   }
 
+  virtual bool fail(double newton_reduction, Controller<dim> &ctl) {
+    return newton_reduction > ctl.params.upper_newton_rho;
+  }
+
+  virtual void after_step(Controller<dim> &ctl) {}
+
   virtual double get_new_timestep_when_fail(Controller<dim> &ctl) {
-    return ctl.current_timestep * 0.1;
+    return new_timestep * 0.1;
   }
 
   void check_time(Controller<dim> &ctl) {
     if (ctl.time != last_time) {
       last_time = ctl.time;
       count_reduction = 0;
-      historical_timesteps.push_back(ctl.current_timestep);
+      historical_timesteps.push_back(new_timestep);
     }
   }
 
@@ -51,7 +64,7 @@ public:
 
   void record(Controller<dim> &ctl) { count_reduction++; }
 
-  virtual void failure_criteria(double new_timestep, Controller<dim> &ctl) {
+  virtual void failure_criteria(Controller<dim> &ctl) {
     if (new_timestep < ctl.params.timestep * 1e-8) {
       AssertThrow(false, ExcInternalError("Step size too small"))
     }
@@ -61,12 +74,14 @@ public:
   std::vector<double> historical_timesteps;
   double last_time;
   int count_reduction;
+  bool save_results;
+  double new_timestep;
 };
 
 template <int dim> class ConstantTimeStep : public AdaptiveTimeStep<dim> {
 public:
   ConstantTimeStep(Controller<dim> &ctl) : AdaptiveTimeStep<dim>(ctl){};
-  void failure_criteria(double new_timestep, Controller<dim> &ctl) override {
+  void failure_criteria(Controller<dim> &ctl) override {
     throw std::runtime_error(
         "Staggered scheme does not converge, and ConstantTimeStep "
         "does not allow adaptive time stepping");
@@ -136,12 +151,12 @@ public:
   };
 
   void initialize_timestep(Controller<dim> &ctl) {
-    ctl.dcout << "KristensenCLATimeStep using parameter: R=" << R << ", f=" << f
+    ctl.dcout << "CojocaruCycleJump using parameter: R=" << R << ", f=" << f
               << "Hz" << std::endl;
 
     ctl.params.timestep_size_2 = T;
     ctl.params.save_vtk_per_step = 5;
-    ctl.dcout << "KristensenCLATimeStep setting timestep to a cycle (" << T
+    ctl.dcout << "CojocaruCycleJump setting timestep to a cycle (" << T
               << "s), setting save_vtk_per_step to 5, which is a period of "
                  "cycle jump."
               << std::endl;

@@ -105,18 +105,17 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
     ctl.dcout << "\n=============================="
               << "===========================================" << std::endl;
 
-    double current_timestep = time_stepping->current_timestep(ctl);
+    double current_timestep = time_stepping->get_timestep(ctl);
     ctl.time += current_timestep;
 
     ctl.dcout << "Time (No." << ctl.timestep_number << "): " << ctl.time
-              << " (Step: " << current_timestep << ")"
-              << " Output: " << ctl.output_timestep_number << " "
+              << " (Step: " << current_timestep << ") "
               << "Cells: " << ctl.triangulation.n_global_active_cells();
     ctl.dcout << "\n--------------------------------"
               << "-----------------------------------------" << std::endl;
     ctl.dcout << std::endl;
 
-    try{
+    try {
       do {
         // The Newton method can either stagnate or the linear solver
         // might not converge. To not abort the program we catch the
@@ -127,7 +126,7 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
           ctl.debug_dcout << "Solve Newton system - staggered scheme"
                           << std::endl;
           newton_reduction = staggered_scheme();
-          while (newton_reduction > ctl.params.upper_newton_rho) {
+          while (time_stepping->fail(newton_reduction, ctl)) {
             time_stepping->execute_when_fail(ctl);
             std::string solution_or_checkpoint =
                 time_stepping->return_solution_or_checkpoint(ctl);
@@ -146,6 +145,7 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
         } catch (SolverControl::NoConvergence &e) {
           ctl.dcout << "Solver did not converge! Adjusting time step."
                     << std::endl;
+          time_stepping->fail(1e8, ctl);
           time_stepping->execute_when_fail(ctl);
           std::string solution_or_checkpoint =
               time_stepping->return_solution_or_checkpoint(ctl);
@@ -158,12 +158,11 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
           }
         }
       } while (true);
-    }
-    catch (const std::runtime_error& e)
-    {
+    } catch (const std::runtime_error &e) {
       ctl.dcout << "Failed to solve: " << e.what() << std::endl;
       break;
     }
+    time_stepping->after_step(ctl);
     ctl.finalize_point_history();
     // Recover time step
     ctl.current_timestep = tmp_current_timestep;
@@ -184,10 +183,14 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
       ctl.timer.leave_subsection();
       ctl.computing_timer.leave_subsection("Refine grid");
     }
+    ++ctl.output_timestep_number;
     if (ctl.timestep_number == 0 ||
-        (ctl.timestep_number + 1) % ctl.params.save_vtk_per_step == 0) {
+        (ctl.timestep_number + 1) % ctl.params.save_vtk_per_step == 0 ||
+        time_stepping->save_results) {
+      time_stepping->save_results = false;
       ctl.timer.enter_subsection("Calculate outputs");
-      ctl.dcout << "Computing output" << std::endl;
+      ctl.dcout << "Computing output (will be saved to No."
+                << ctl.output_timestep_number << ")" << std::endl;
       ctl.computing_timer.enter_subsection("Calculate outputs");
       output_results();
       ctl.computing_timer.leave_subsection("Calculate outputs");
@@ -195,7 +198,6 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
     }
     ctl.timer.enter_subsection("Solve Newton system");
     ++ctl.timestep_number;
-    ++ctl.output_timestep_number;
 
     ctl.computing_timer.print_summary();
     ctl.computing_timer.reset();
