@@ -90,9 +90,12 @@ public:
                                   unsigned int n_components_inp)
       : GeneralDirichletBoundary<dim>(
             present_time_inp,
-            triangular_wave(present_time_inp, frequency_mean_amplitude[2],
-                            frequency_mean_amplitude[1],
-                            frequency_mean_amplitude[0]),
+            triangular_wave(
+                present_time_inp - ((frequency_mean_amplitude.size() == 4)
+                                        ? frequency_mean_amplitude[3]
+                                        : 0.0),
+                frequency_mean_amplitude[2], frequency_mean_amplitude[1],
+                frequency_mean_amplitude[0]),
             n_components_inp){};
 };
 
@@ -104,8 +107,11 @@ public:
                             unsigned int n_components_inp)
       : GeneralDirichletBoundary<dim>(
             present_time_inp,
-            sine_wave(present_time_inp, frequency_mean_amplitude[2],
-                      frequency_mean_amplitude[1], frequency_mean_amplitude[0]),
+            sine_wave(present_time_inp - ((frequency_mean_amplitude.size() == 4)
+                                              ? frequency_mean_amplitude[3]
+                                              : 0.0),
+                      frequency_mean_amplitude[2], frequency_mean_amplitude[1],
+                      frequency_mean_amplitude[0]),
             n_components_inp){};
 };
 
@@ -180,8 +186,11 @@ public:
                                 unsigned int n_components_inp)
       : GeneralNeumannBoundary<dim>(present_time_inp, constraint_vector_inp,
                                     n_components_inp) {
+    double phase = (frequency_mean_amplitude.size() == 4)
+                       ? frequency_mean_amplitude[3]
+                       : 0.0;
     double multiplier = triangular_wave(
-        present_time_inp, frequency_mean_amplitude[2],
+        present_time_inp - phase, frequency_mean_amplitude[2],
         frequency_mean_amplitude[1], frequency_mean_amplitude[0]);
     ;
     this->multiply(multiplier);
@@ -197,8 +206,11 @@ public:
                           unsigned int n_components_inp)
       : GeneralNeumannBoundary<dim>(present_time_inp, constraint_vector_inp,
                                     n_components_inp) {
+    double phase = (frequency_mean_amplitude.size() == 4)
+                       ? frequency_mean_amplitude[3]
+                       : 0.0;
     double multiplier =
-        sine_wave(present_time_inp, frequency_mean_amplitude[2],
+        sine_wave(present_time_inp - phase, frequency_mean_amplitude[2],
                   frequency_mean_amplitude[1], frequency_mean_amplitude[0]);
     ;
     this->multiply(multiplier);
