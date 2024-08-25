@@ -36,7 +36,7 @@ subsection Runtime
   # Phase field scheme
   set Use monolithic = false
   set Use multipass staggered = true
-  set Maximum number of multipass steps = 50
+  set Maximum number of multipass steps = 20
   set Residual tolerance of multipass = 1e-6
   set Quit multipass if residual increasing = true
 
