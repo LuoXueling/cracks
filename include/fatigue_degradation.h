@@ -209,7 +209,15 @@ public:
     // We have to multiply another 0.5 to reproduce the results.
     double epsilon_at2 =
         std::sqrt(ctl.params.Gc / (3 * ctl.params.l_phi * ctl.params.E));
-    alpha_n = 0.5 * 0.5 * epsilon_at2 * ctl.params.E * epsilon_at2;
+    if (ctl.params.fatigue_accumulation_parameters == "") {
+      alpha_n = 0.5 * 0.5 * epsilon_at2 * ctl.params.E * epsilon_at2;
+      ctl.dcout << "Using alpha_n: " << alpha_n << std::endl;
+    } else {
+      std::istringstream iss(ctl.params.fatigue_accumulation_parameters);
+      iss >> alpha_n;
+      ctl.dcout << "Using alpha_n: " << alpha_n << "from configuration"
+                << std::endl;
+    }
   };
 
   double increment(const std::shared_ptr<PointHistory> &lqph, double phasefield,
@@ -262,11 +270,19 @@ class CarraraAsymptoticFatigueDegradation : public FatigueDegradation<dim> {
 public:
   CarraraAsymptoticFatigueDegradation(Controller<dim> &ctl)
       : FatigueDegradation<dim>(ctl) {
-    double epsilon_at2 =
-        std::sqrt(ctl.params.Gc / (3 * ctl.params.l_phi * ctl.params.E));
-    // Eq. 47 does not match any of alpha_t claimed in the result section
-    // We have to multiply another 0.5 to reproduce the results.
-    alpha_t = 0.5 * 0.5 * epsilon_at2 * ctl.params.E * epsilon_at2;
+    if (ctl.params.fatigue_degradation_parameters == "") {
+      // Eq. 47 does not match any of alpha_t claimed in the result section
+      // We have to multiply another 0.5 to reproduce the results.
+      double epsilon_at2 =
+          std::sqrt(ctl.params.Gc / (3 * ctl.params.l_phi * ctl.params.E));
+      alpha_t = 0.5 * 0.5 * epsilon_at2 * ctl.params.E * epsilon_at2;
+      ctl.dcout << "Using alpha_t: " << alpha_t << std::endl;
+    } else {
+      std::istringstream iss(ctl.params.fatigue_degradation_parameters);
+      iss >> alpha_t;
+      ctl.dcout << "Using alpha_t: " << alpha_t << " from configuration"
+                << std::endl;
+    }
   };
   double degradation_value(const std::shared_ptr<PointHistory> &lqph,
                            double phasefield, double phasefield_degrade,

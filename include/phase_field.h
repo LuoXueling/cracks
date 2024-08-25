@@ -27,6 +27,10 @@ public:
   void output_results(DataOut<dim> &data_out, Controller<dim> &ctl) override;
 
   void enforce_phase_field_limitation(Controller<dim> &ctl);
+
+  std::unique_ptr<Degradation<dim>> degradation;
+  std::unique_ptr<FatigueDegradation<dim>> fatigue_degradation;
+  std::unique_ptr<FatigueAccumulation<dim>> fatigue_accumulation;
 };
 
 template <int dim>
@@ -34,7 +38,13 @@ PhaseField<dim>::PhaseField(std::string update_scheme, Controller<dim> &ctl)
     : AbstractField<dim>(std::vector<unsigned int>(1, 1),
                          std::vector<std::string>(1, "phasefield"),
                          std::vector<std::string>(1, "none"), update_scheme,
-                         ctl) {}
+                         ctl) {
+  degradation = select_degradation<dim>(ctl.params.degradation);
+  fatigue_degradation =
+      select_fatigue_degradation<dim>(ctl.params.fatigue_degradation, ctl);
+  fatigue_accumulation =
+      select_fatigue_accumulation<dim>(ctl.params.fatigue_accumulation, ctl);
+}
 
 template <int dim>
 void PhaseField<dim>::assemble_linear_system(Controller<dim> &ctl) {
@@ -183,13 +193,6 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
 
   std::vector<double> Nphi_kq(dofs_per_cell);
   std::vector<Tensor<1, dim>> Bphi_kq(dofs_per_cell);
-
-  std::unique_ptr<Degradation<dim>> degradation =
-      select_degradation<dim>(ctl.params.degradation);
-  std::unique_ptr<FatigueDegradation<dim>> fatigue_degradation =
-      select_fatigue_degradation<dim>(ctl.params.fatigue_degradation, ctl);
-  std::unique_ptr<FatigueAccumulation<dim>> fatigue_accumulation =
-      select_fatigue_accumulation<dim>(ctl.params.fatigue_accumulation, ctl);
 
   for (const auto &cell : (this->dof_handler).active_cell_iterators())
     if (cell->is_locally_owned()) {
