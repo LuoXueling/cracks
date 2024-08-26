@@ -93,7 +93,8 @@ public:
    * Solutions
    */
   LA::MPI::BlockSparseMatrix system_matrix;
-  LA::MPI::BlockVector solution, newton_update, old_solution, solution_checkpoint;
+  LA::MPI::BlockVector solution, newton_update, old_solution,
+      solution_checkpoint;
   //  LA::MPI::BlockVector system_total_residual;
   LA::MPI::BlockVector system_rhs;
   LA::MPI::BlockVector neumann_rhs;
@@ -375,7 +376,7 @@ double AbstractField<dim>::update_newton_system(Controller<dim> &ctl) {
   LA::MPI::BlockVector distributed_solution(fields_locally_owned_dofs);
   distributed_solution = solution;
 
-  newton_info.residual = system_rhs.linfty_norm();
+  newton_info.residual = get_norm(system_rhs, ctl.params.norm_type);
   newton_info.old_residual = newton_info.residual * 1e8;
   newton_info.i_step = 1;
   newton_info.iterative_solver_nonlinear_step = 0;
@@ -419,7 +420,7 @@ double AbstractField<dim>::update_newton_system(Controller<dim> &ctl) {
       ctl.debug_dcout
           << "Solve Newton system - Newton iteration - dealing solution"
           << std::endl;
-      newton_info.new_residual = system_rhs.linfty_norm();
+      newton_info.new_residual = get_norm(system_rhs, ctl.params.norm_type);
       newton_ctl->apply_increment(system_solution, distributed_solution,
                                   this->system_matrix, this->system_rhs,
                                   neumann_rhs, newton_info, ctl);
@@ -448,7 +449,7 @@ double AbstractField<dim>::update_newton_system(Controller<dim> &ctl) {
             << std::endl;
         assemble_newton_system(true, neumann_rhs, ctl);
       }
-      newton_info.new_residual = system_rhs.linfty_norm();
+      newton_info.new_residual = get_norm(system_rhs, ctl.params.norm_type);
 
       if (newton_ctl->quit_adjustment(newton_info, ctl)) {
         ctl.debug_dcout

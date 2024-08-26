@@ -68,6 +68,7 @@ struct Runtime {
   double timestep;
   double timestep_size_2;
   unsigned int switch_timestep;
+  std::string norm_type;
   bool direct_solver;
   double lower_bound_newton_residual;
   unsigned int max_no_newton_steps;
@@ -108,6 +109,9 @@ void Runtime::subsection_declare_parameters(ParameterHandler &prm) {
 
     prm.declare_entry("Switch timestep after steps", "0", Patterns::Integer(0));
     prm.declare_entry("Use Direct Inner Solver", "false", Patterns::Bool());
+
+    prm.declare_entry("Norm type", "linfty",
+                      Patterns::Selection("linfty|l2|l1"));
 
     prm.declare_entry("Newton lower bound", "1.0e-10", Patterns::Double(0));
 
@@ -166,6 +170,8 @@ void Runtime::subsection_parse_parameters(ParameterHandler &prm) {
     switch_timestep = prm.get_integer("Switch timestep after steps");
 
     direct_solver = prm.get_bool("Use Direct Inner Solver");
+
+    norm_type = prm.get("Norm type");
 
     // Newton tolerances and maximum steps
     lower_bound_newton_residual = prm.get_double("Newton lower bound");

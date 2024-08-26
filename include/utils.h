@@ -419,4 +419,18 @@ bool PolynomialRegression<TYPE>::fitIt(
 
   return true;
 }
+
+double get_norm(LA::MPI::BlockVector &x, std::string norm_type){
+  double res = 0.0;
+  if (norm_type == "l2"){
+    res = x.l2_norm();
+  } else if (norm_type == "l1"){
+    res = x.l1_norm();
+  } else if (norm_type == "linfty"){
+    res = x.linfty_norm();
+  } else {
+    AssertThrow(false, ExcNotImplemented("Norm type not supported"));
+  }
+  return res;
+}
 #endif
