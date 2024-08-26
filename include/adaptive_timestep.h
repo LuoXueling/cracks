@@ -626,6 +626,229 @@ public:
   }
 };
 
+template <int dim> class YangCycleJump : public ConstantTimeStep<dim> {
+public:
+  double f, T;
+  double E, epsilon, epsilon_max;
+  double subcycle;
+  double tol;
+  double max_diff;
+  unsigned int n_jump;
+  unsigned int last_jump, last_last_jump;
+  unsigned int expected_cycles;
+  unsigned int n_resolved_cycles;
+
+  unsigned int initial_save_period;
+
+  double trial_start;
+  double trial_start_output_time, trial_start_timestep_number;
+
+  bool refine_state;
+
+  YangCycleJump(Controller<dim> &ctl)
+      : ConstantTimeStep<dim>(ctl), subcycle(0), n_jump(0), last_jump(1),
+        last_last_jump(1), initial_save_period(0), n_resolved_cycles(0),
+        trial_start(-1), trial_start_output_time(-1), max_diff(0),
+        trial_start_timestep_number(-1) {
+    if (ctl.params.fatigue_accumulation != "Yang") {
+      ctl.dcout << "YangCycleJump is expected to used with "
+                   "YangAccumulation, but it's not. Please make sure "
+                   "that the accumulation rule supports cycle jump."
+                << std::endl;
+    }
+    AssertThrow(
+        ctl.params.adaptive_timestep_parameters != "",
+        ExcInternalError("Parameters of YangCycleJump is not assigned."));
+    std::istringstream iss(ctl.params.adaptive_timestep_parameters);
+    iss >> f >> epsilon >> E >> epsilon_max;
+    T = 1 / f;
+    expected_cycles = std::round(
+        (ctl.params.timestep * (ctl.params.switch_timestep + 1) +
+         ctl.params.timestep_size_2 *
+             (ctl.params.max_no_timesteps - ctl.params.switch_timestep - 1)) /
+        T);
+    initial_save_period = ctl.params.save_vtk_per_step;
+    ctl.set_info("Subcycle", subcycle); // PointHistory won't record at the
+                                        // first step (it should be zero).
+    AssertThrow(
+        std::fmod(T, ctl.params.timestep) < 1e-8 &&
+            std::fmod(T, ctl.params.timestep_size_2) < 1e-8,
+        ExcInternalError("The period has to be divisible by the time step"));
+    tol = epsilon * 1e5 * E * epsilon_max * epsilon_max / 2;
+    ctl.set_info("Last jump", last_jump);
+  };
+
+  void initialize_timestep(Controller<dim> &ctl) {
+    ctl.dcout << "YangCycleJump using parameter: f=" << f
+              << " Hz, epsilon=" << epsilon << ", E=" << E
+              << " MPa, varepsilon_max=" << epsilon_max << std::endl;
+    ctl.params.save_vtk_per_step = 1e10;
+    ctl.dcout << "YangCycleJump disables periodical outputs. Instead, it will "
+                 "save after each cycle jump, or after every "
+              << initial_save_period << " steps if the system changes rapidly."
+              << std::endl;
+  }
+
+  double current_timestep(Controller<dim> &ctl) override {
+    double time_step = ctl.current_timestep;
+    if (std::abs(subcycle - 1) < 1e-8) {
+      subcycle = 0.0;
+    }
+    if (std::abs(subcycle) < 1e-8 && n_resolved_cycles >= 2 && n_jump == 0) {
+      n_jump = new_jump(last_jump, ctl);
+      if (n_jump > 1) {
+        ctl.set_info("N jump", n_jump);
+        ctl.dcout << "Doing cycle jumping in this timestep: jumping " << n_jump
+                  << " cycles (including the preceding cycle)" << std::endl;
+        time_step = T * (n_jump - 1);
+
+        trial_start = ctl.time;
+        trial_start_output_time = ctl.output_timestep_number;
+        trial_start_timestep_number = ctl.timestep_number;
+        ctl.params.save_vtk_per_step = 1e10;
+        refine_state = ctl.params.refine;
+        if (refine_state) {
+          ctl.dcout << "Refinement is disabled temporarily" << std::endl;
+        }
+        ctl.params.refine = false; // We need the checkpoint work.
+      } else {
+        ctl.dcout << "The system is changing rapidly. No cycle jumping is "
+                     "executed in this time step"
+                  << std::endl;
+        ctl.params.save_vtk_per_step = initial_save_period;
+        n_jump = 0;
+        ctl.set_info("N jump", n_jump);
+        subcycle = 0.0;
+      }
+    } else {
+      n_jump = 0;
+      ctl.set_info("N jump", n_jump);
+    }
+    if (n_jump == 0) {
+      subcycle += ctl.current_timestep / T;
+    } else {
+      subcycle = 0.0;
+    }
+    ctl.set_info("Subcycle", subcycle);
+    ctl.dcout << "Current subcycle: " << subcycle << std::endl;
+    return time_step;
+  }
+
+  bool pass(unsigned int m, Controller<dim> &ctl) {
+    return (m * max_diff / 2 <= tol || m == 1);
+  }
+
+  unsigned int new_jump(unsigned int m, Controller<dim> &ctl) {
+    if (n_resolved_cycles < 2) {
+      return 1;
+    } else {
+      return std::max(
+          1, static_cast<int>(std::floor(std::sqrt(tol * 2 * m / max_diff))));
+    }
+  }
+
+  bool fail(double newton_reduction, Controller<dim> &ctl) override {
+    if (std::abs(subcycle - 1) < 1e-8) {
+      max_diff = GlobalEstimator::absmax<dim>("Fast increment diff", 0.0, ctl);
+      if (n_resolved_cycles >= 2) {
+        return !pass(last_jump, ctl);
+      } else {
+        return newton_reduction > ctl.params.upper_newton_rho;
+      }
+    } else {
+      return newton_reduction > ctl.params.upper_newton_rho;
+    }
+  }
+
+  double get_new_timestep_when_fail(Controller<dim> &ctl) override {
+    if (std::abs(subcycle - 1) < 1e-8 && n_resolved_cycles >= 2) {
+      ctl.time = trial_start;
+      ctl.timestep_number = trial_start_timestep_number;
+      ctl.output_timestep_number = trial_start_output_time;
+
+      n_jump = new_jump(last_jump, ctl);
+      ctl.set_info("N jump", n_jump);
+      last_jump = last_last_jump;
+      ctl.set_info("Last jump", last_jump);
+      subcycle = 0;
+      ctl.set_info("Subcycle", subcycle);
+      trial_start = ctl.time;
+      trial_start_output_time = ctl.output_timestep_number;
+      trial_start_timestep_number = ctl.timestep_number;
+
+      ctl.dcout << "Trial jump failed. Returning to time ("
+                << trial_start_timestep_number - 1 << ") " << trial_start
+                << " and jump again with " << n_jump
+                << " cycles (including the preceding cycle)" << std::endl;
+    }
+    return T * ((n_jump > 1) ? (n_jump - 1) : 1);
+  }
+
+  void failure_criteria(Controller<dim> &ctl) override {
+    if (!((std::abs(subcycle - 1) < 1e-8 && n_resolved_cycles >= 2) ||
+          (std::abs(subcycle) < 1e-8 && n_jump > 0))) {
+      throw std::runtime_error("Staggered scheme does not converge when "
+                               "cycle jump is performed.");
+    }
+  }
+
+  void after_step(Controller<dim> &ctl) override {
+    if (n_jump > 0) {
+      last_last_jump = last_jump;
+      last_jump = n_jump;
+      ctl.set_info("Last jump", last_jump);
+    }
+    if (std::abs(subcycle - 1) < 1e-8 && n_resolved_cycles >= 2) {
+      ctl.output_timestep_number += last_jump - 1;
+      if (last_jump > 0) {
+        ctl.dcout
+            << "Cycle jump is done successfully. The number of jumped cycle: "
+            << last_jump << " (including the preceding cycle)." << std::endl;
+      }
+      n_jump = 0;
+      ctl.set_info("N jump", n_jump);
+      n_resolved_cycles++;
+      this->save_results = true;
+      ctl.params.save_vtk_per_step = 1e10;
+      ctl.params.refine = refine_state;
+    } else {
+      if (std::abs(subcycle - 1) < 1e-8) {
+        n_resolved_cycles++;
+      }
+      ctl.output_timestep_number += (std::abs(subcycle - 1) < 1e-8) ? 0 : (-1);
+    }
+    ctl.dcout << "The number of resolved cycles: " << n_resolved_cycles
+              << std::endl;
+  }
+
+  bool save_checkpoint(Controller<dim> &ctl) override {
+    if (std::abs(subcycle - 1) < 1e-8 && n_resolved_cycles >= 2) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  std::string return_solution_or_checkpoint(Controller<dim> &ctl) override {
+    if (std::abs(subcycle) < 1e-8 && n_jump > 0) {
+      return "checkpoint";
+    } else {
+      return "solution";
+    }
+  }
+
+  bool terminate(Controller<dim> &ctl) override {
+    if (ctl.time / T >= expected_cycles) {
+      ctl.dcout << "Terminating as the number of cycles reaches the expected "
+                   "number (Max no of timestep in the configuration)."
+                << std::endl;
+      return true;
+    } else {
+      return false;
+    }
+  }
+};
+
 template <int dim>
 std::unique_ptr<AdaptiveTimeStep<dim>>
 select_adaptive_timestep(std::string method, Controller<dim> &ctl) {
@@ -639,6 +862,8 @@ select_adaptive_timestep(std::string method, Controller<dim> &ctl) {
     return std::make_unique<CojocaruCycleJump<dim>>(ctl);
   else if (method == "JonasCycleJump")
     return std::make_unique<JonasCycleJump<dim>>(ctl);
+  else if (method == "YangCycleJump")
+    return std::make_unique<YangCycleJump<dim>>(ctl);
   else
     AssertThrow(false, ExcNotImplemented());
 }

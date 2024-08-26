@@ -200,6 +200,44 @@ public:
   };
 };
 
+template <int dim> class YangAccumulation : public FatigueAccumulation<dim> {
+public:
+  YangAccumulation(Controller<dim> &ctl) : FatigueAccumulation<dim>(ctl){};
+  double increment(const std::shared_ptr<PointHistory> &lqph, double phasefield,
+                   double degrade, double degrade_derivative,
+                   double degrade_second_derivative,
+                   Controller<dim> &ctl) override {
+    double n_jumps = ctl.get_info("N jump", 0.0);
+    double increm = 0;
+    double subcycle = ctl.get_info("Subcycle", 0.0);
+
+    if (std::fmod(subcycle, 1) < 1e-8) {
+      lqph->update("Initial history", lqph->get_latest("Fatigue history", 0.0));
+      if (std::abs(subcycle - 1) < 1e-8) {
+        double new_increment = lqph->get_latest("Fatigue history", 0.0) -
+                               lqph->get_initial("Initial history", 0.0);
+        double old_increment =
+            lqph->get_initial("Fast increment", new_increment);
+        lqph->update("Fast increment", new_increment);
+        lqph->update("Fast increment diff", new_increment - old_increment);
+      }
+    }
+    if (std::abs(subcycle - 0) > 1e-8 || std::abs(n_jumps) < 1e-8) {
+      // Regular accumulation
+      double dpsi =
+          lqph->get_increment_latest("Positive elastic energy") * degrade;
+      increm = (dpsi > 0 ? 1.0 : 0.0) * dpsi;
+    } else {
+      double last_jump = ctl.get_info("Last jump", 0.0);
+      double new_increment = lqph->get_initial("Fast increment", 0.0);
+      double diff = lqph->get_initial("Fast increment diff", 0.0);
+      double extra_increm = new_increment + n_jumps / last_jump * diff;
+      increm = n_jumps * (extra_increm + new_increment) / 2 - new_increment;
+    }
+    return increm;
+  };
+};
+
 template <int dim>
 class CarraraMeanEffectAccumulation : public FatigueAccumulation<dim> {
 public:
@@ -250,6 +288,8 @@ select_fatigue_accumulation(std::string method, Controller<dim> &ctl) {
     return std::make_unique<CojocaruCLAAccumulation<dim>>(ctl);
   else if (method == "Jonas")
     return std::make_unique<JonasAccumulation<dim>>(ctl);
+  else if (method == "Yang")
+    return std::make_unique<YangAccumulation<dim>>(ctl);
   else
     AssertThrow(false, ExcNotImplemented());
 }
@@ -301,6 +341,39 @@ public:
   double alpha_t;
 };
 
+// https://www.sciencedirect.com/science/article/pii/S0045782519306218
+template <int dim>
+class CarraraLogarithmicFatigueDegradation : public FatigueDegradation<dim> {
+public:
+  CarraraLogarithmicFatigueDegradation(Controller<dim> &ctl)
+      : FatigueDegradation<dim>(ctl) {
+    AssertThrow(
+        ctl.params.fatigue_degradation_parameters != "",
+        ExcInternalError("Parameters of CarraraLogarithmicFatigueDegradation "
+                         "is not assigned."));
+    std::istringstream iss(ctl.params.fatigue_degradation_parameters);
+    iss >> alpha_t >> kappa;
+    ctl.dcout << "Using alpha_t: " << alpha_t << " and kappa: " << kappa
+              << std::endl;
+  };
+  double degradation_value(const std::shared_ptr<PointHistory> &lqph,
+                           double phasefield, double phasefield_degrade,
+                           Controller<dim> &ctl) override {
+    double degrade;
+    double alpha = lqph->get_latest("Fatigue history", 0.0);
+    if (alpha <= alpha_t) {
+      degrade = 1;
+    } else if (alpha <= (alpha_t * std::pow(10, 1 / kappa))) {
+      degrade = std::pow(1 - kappa * std::log10(alpha / alpha_t), 2);
+    } else {
+      degrade = 0;
+    }
+    return degrade;
+  };
+
+  double alpha_t, kappa;
+};
+
 template <int dim>
 class KristensenAsymptoticFatigueDegradation
     : public CarraraAsymptoticFatigueDegradation<dim> {
@@ -337,6 +410,8 @@ std::unique_ptr<FatigueDegradation<dim>>
 select_fatigue_degradation(std::string method, Controller<dim> &ctl) {
   if (method == "CarraraAsymptotic")
     return std::make_unique<CarraraAsymptoticFatigueDegradation<dim>>(ctl);
+  else if (method == "CarraraLogarithmic")
+    return std::make_unique<CarraraLogarithmicFatigueDegradation<dim>>(ctl);
   else if (method == "KristensenAsymptotic")
     return std::make_unique<KristensenAsymptoticFatigueDegradation<dim>>(ctl);
   else if (method == "CojocaruAsymptotic")
