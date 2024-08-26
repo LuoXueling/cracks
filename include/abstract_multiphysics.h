@@ -167,11 +167,6 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
     // Recover time step
     ctl.current_timestep = tmp_current_timestep;
     ctl.timer.leave_subsection("Solve Newton system");
-    // Whether to save checkpoints
-    if (time_stepping->save_checkpoint(ctl)) {
-      ctl.dcout << "Saving checkpoint" << std::endl;
-      record_checkpoint();
-    }
     // Refine mesh.
     if (ctl.params.refine) {
       ctl.dcout << "Refining mesh" << std::endl;
@@ -182,6 +177,11 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
         ctl.last_refinement_timestep_number = ctl.timestep_number;
       ctl.timer.leave_subsection();
       ctl.computing_timer.leave_subsection("Refine grid");
+    }
+    // Whether to save checkpoints
+    if (time_stepping->save_checkpoint(ctl)) {
+      ctl.dcout << "Saving checkpoint" << std::endl;
+      record_checkpoint();
     }
     ++ctl.output_timestep_number;
     if (ctl.timestep_number == 0 ||
