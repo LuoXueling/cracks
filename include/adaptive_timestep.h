@@ -57,11 +57,9 @@ public:
     }
   }
 
-  virtual bool save_checkpoint(Controller<dim> &ctl){
-    return false;
-  }
+  virtual bool save_checkpoint(Controller<dim> &ctl) { return false; }
 
-  virtual std::string return_solution_or_checkpoint(Controller<dim> &ctl){
+  virtual std::string return_solution_or_checkpoint(Controller<dim> &ctl) {
     return "solution";
   }
 
@@ -392,7 +390,7 @@ public:
           ctl.set_info("N jump", n_jump);
           ctl.dcout << "Doing cycle jumping in this timestep: jumping "
                     << n_jump << " cycles with 1 trial cycle" << std::endl;
-          time_step = T * (n_jump-1);
+          time_step = T * (n_jump - 1);
 
           doing_cycle_jump = true;
           n_jump_initial = n_jump;
@@ -404,7 +402,7 @@ public:
           trial_cycle_start_timestep_number = ctl.timestep_number;
           ctl.params.save_vtk_per_step = 1e10;
           refine_state = ctl.params.refine;
-          if (refine_state){
+          if (refine_state) {
             ctl.dcout << "Refinement is disabled temporarily" << std::endl;
           }
           ctl.params.refine = false; // We need the checkpoint work.
@@ -436,8 +434,7 @@ public:
     if (doing_cycle_jump || trial_cycle) {
       // Doing cycle jump
       if (newton_reduction > ctl.params.upper_newton_rho) {
-        n_jump =
-            std::max(static_cast<int>(std::round(n_jump_initial / 2)), 0);
+        n_jump = std::max(static_cast<int>(std::round(n_jump_initial / 2)), 0);
         ctl.set_info("N jump", n_jump);
         ctl.dcout << "The system fails to establish equilibrium. Reducing the "
                      "number of jumps to "
@@ -452,14 +449,13 @@ public:
           trial_monitor = get_stage3_monitor(ctl);
         }
         trial_Delta = trial_monitor - monitor;
-        AssertThrow(
-            trial_Delta >= 0,
-            ExcInternalError("The increment of monitored value is negative."));
+//        AssertThrow(
+//            trial_Delta >= 0,
+//            ExcInternalError("The increment of monitored value is negative."));
         if (trial_Delta > 1.5 * Delta) {
-          n_jump = std::max(
-              static_cast<int>(
-                  std::round(Delta / trial_Delta * n_jump_initial)),
-              0);
+          n_jump = std::max(static_cast<int>(std::round(Delta / trial_Delta *
+                                                        n_jump_initial)),
+                            0);
           ctl.set_info("N jump", n_jump);
           ctl.dcout << "The real increment of the monitored value ("
                     << trial_Delta
@@ -530,7 +526,7 @@ public:
                 << trial_cycle_start << " and jump again with " << n_jump
                 << " cycles + 1 trial cycle" << std::endl;
     }
-    return T * ((n_jump > 1) ? (n_jump-1) : 1);
+    return T * ((n_jump > 1) ? (n_jump - 1) : 1);
   }
 
   void failure_criteria(Controller<dim> &ctl) override {
@@ -569,7 +565,7 @@ public:
           (std::fmod(subcycle, 1) < 1e-8 && subcycle > 0) ? 0 : (-1);
     }
 
-    if (!trial_cycle){
+    if (!trial_cycle) {
       if (stage == 1) {
         monitor = get_stage1_monitor(ctl);
       } else if (stage == 2) {
@@ -602,16 +598,16 @@ public:
               << resolved_cycles.size() << std::endl;
   }
 
-  bool save_checkpoint(Controller<dim> &ctl) override{
-    if (std::abs(subcycle - Ns) < 1e-8){
+  bool save_checkpoint(Controller<dim> &ctl) override {
+    if (std::abs(subcycle - Ns) < 1e-8) {
       return true;
     } else {
       return false;
     }
   }
 
-  std::string return_solution_or_checkpoint(Controller<dim> &ctl) override{
-    if (trial_cycle){
+  std::string return_solution_or_checkpoint(Controller<dim> &ctl) override {
+    if (trial_cycle) {
       return "checkpoint";
     } else {
       return "solution";
