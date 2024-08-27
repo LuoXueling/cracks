@@ -468,7 +468,14 @@ double AbstractField<dim>::update_newton_system(Controller<dim> &ctl) {
         solution = distributed_solution;
       }
     }
-    newton_info.old_residual = newton_info.residual;
+    if (newton_info.i_step == 1 &&
+        !newton_ctl->allow_skip_first_iteration(newton_info, ctl) &&
+        newton_info.new_residual <= ctl.params.lower_bound_newton_residual) {
+      // Do nothing, and jump out without triggering error if the residual
+      // increases a little
+    } else {
+      newton_info.old_residual = newton_info.residual;
+    }
     newton_info.residual = newton_info.new_residual;
 
     ctl.dcout << std::setprecision(-1) << std::defaultfloat

@@ -72,6 +72,7 @@ struct Runtime {
   bool direct_solver;
   double lower_bound_newton_residual;
   unsigned int max_no_newton_steps;
+  bool skip_first_iter;
   double upper_newton_rho;
   std::string adjustment_method;
   std::string adjustment_method_elasticity;
@@ -118,6 +119,7 @@ void Runtime::subsection_declare_parameters(ParameterHandler &prm) {
     prm.declare_entry("Newton maximum steps", "10", Patterns::Integer(0));
 
     prm.declare_entry("Upper Newton rho", "0.999", Patterns::Double(0));
+    prm.declare_entry("Allow skip first Newton iteration", "true", Patterns::Bool());
 
     prm.declare_entry(
         "Adjustment method", "linesearch",
@@ -178,6 +180,8 @@ void Runtime::subsection_parse_parameters(ParameterHandler &prm) {
     // Newton tolerances and maximum steps
     lower_bound_newton_residual = prm.get_double("Newton lower bound");
     max_no_newton_steps = prm.get_integer("Newton maximum steps");
+
+    skip_first_iter = prm.get_bool("Allow skip first Newton iteration");
 
     // Criterion when time step should be cut
     // Higher number means: almost never
