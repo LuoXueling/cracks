@@ -449,9 +449,9 @@ public:
           trial_monitor = get_stage3_monitor(ctl);
         }
         trial_Delta = trial_monitor - monitor;
-//        AssertThrow(
-//            trial_Delta >= 0,
-//            ExcInternalError("The increment of monitored value is negative."));
+        AssertThrow(
+            trial_Delta >= 0,
+            ExcInternalError("The increment of monitored value is negative."));
         if (trial_Delta > 1.5 * Delta) {
           n_jump = std::max(static_cast<int>(std::round(Delta / trial_Delta *
                                                         n_jump_initial)),
@@ -615,7 +615,7 @@ public:
   }
 
   bool terminate(Controller<dim> &ctl) override {
-    if (ctl.time / T >= expected_cycles) {
+    if (ctl.time / T >= expected_cycles && !trial_cycle) {
       ctl.dcout << "Terminating as the number of cycles reaches the expected "
                    "number (Max no of timestep in the configuration)."
                 << std::endl;
@@ -838,7 +838,7 @@ public:
   }
 
   bool terminate(Controller<dim> &ctl) override {
-    if (ctl.time / T >= expected_cycles) {
+    if (ctl.time / T >= expected_cycles && std::abs(subcycle - 1) < 1e-8) {
       ctl.dcout << "Terminating as the number of cycles reaches the expected "
                    "number (Max no of timestep in the configuration)."
                 << std::endl;
