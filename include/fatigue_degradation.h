@@ -85,7 +85,8 @@ public:
                    double degrade_second_derivative,
                    Controller<dim> &ctl) override {
     double psi = lqph->get_latest("Positive elastic energy", 0.0);
-    double increm = psi * (1 - R * R * (R >= 0 ? 1 : 0));
+    double n_jump = ctl.get_info("N jump", 1);
+    double increm = psi * (1 - R * R * (R >= 0 ? 1 : 0)) * n_jump;
     return increm;
   };
   double R;

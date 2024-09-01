@@ -14,7 +14,7 @@ end
 subsection Runtime
   # Time step
   set Adaptive timestep = KristensenCLA
-  set Adaptive timestep parameters = 0 1
+  set Adaptive timestep parameters = 0 1 32
   set Max No of timesteps = 240000
   set Timestep size = 0.25
   set Timestep size to switch to = 0.5
@@ -27,8 +27,8 @@ subsection Runtime
   set Upper Newton rho = 0.999
   set Maximum number of adjustment steps of Newton solution = 10
 
-  set Adjustment method = none
-  set Adjustment method for elasticity = none
+  set Adjustment method = KristensenModifiedNewton
+  set Adjustment method for elasticity = KristensenModifiedNewton
   set Parameters of line search = 0.1
   set Parameters of modified newton = 25 100
 

@@ -105,25 +105,70 @@ public:
     std::istringstream iss(ctl.params.adaptive_timestep_parameters);
     iss >> R >> f;
     T = 1 / f;
+    if (!iss.eof()) {
+      iss >> n_jump;
+    } else {
+      n_jump = 1;
+    }
+    ctl.set_info("N jump", 1);
     AssertThrow(ctl.params.timestep * (ctl.params.switch_timestep + 1) ==
                     0.25 * T,
                 ExcInternalError("The initial timestep has to be switched when "
                                  "reaching a quarter of a cycle."));
-    n_cycles_per_vtk = static_cast<int>(ctl.params.save_vtk_per_step /
-                                        (T / ctl.params.timestep_size_2));
+    n_cycles_per_vtk = static_cast<int>(std::round(
+        ctl.params.save_vtk_per_step / (T / ctl.params.timestep_size_2)));
+    expected_cycles = std::round(
+        (ctl.params.timestep * (ctl.params.switch_timestep + 1) +
+         ctl.params.timestep_size_2 *
+             (ctl.params.max_no_timesteps - ctl.params.switch_timestep - 1)) /
+        T);
   }
+
   void initialize_timestep(Controller<dim> &ctl) {
     ctl.dcout << "KristensenCLATimeStep using parameter: R=" << R << ", f=" << f
-              << "Hz" << std::endl;
+              << "Hz, n_jump=" << n_jump << std::endl;
 
     ctl.params.timestep_size_2 = T;
-    ctl.params.save_vtk_per_step = n_cycles_per_vtk;
+    ctl.params.save_vtk_per_step = static_cast<int>(
+        std::ceil(static_cast<double>(n_cycles_per_vtk) / n_jump));
     ctl.dcout << "KristensenCLATimeStep setting timestep to a cycle (" << T
-              << "s), setting save_vtk_per_step to " << n_cycles_per_vtk
-              << std::endl;
+              << "s), setting save_vtk_per_step to "
+              << ctl.params.save_vtk_per_step << std::endl;
   }
+
+  double current_timestep(Controller<dim> &ctl) override {
+    if (ctl.current_timestep != ctl.params.timestep_size_2) {
+      ctl.set_info("N jump", 1);
+      return ctl.current_timestep;
+    } else {
+      ctl.set_info("N jump", n_jump);
+      return ctl.current_timestep * n_jump;
+    }
+  }
+
+  void after_step(Controller<dim> &ctl) override {
+    if (ctl.current_timestep == ctl.params.timestep_size_2) {
+      ctl.output_timestep_number += n_jump - 1;
+    } else {
+      ctl.output_timestep_number += (std::fmod(ctl.time, T) < 1e-8) ? 0 : (-1);
+    }
+  }
+
+  bool terminate(Controller<dim> &ctl) override {
+    if (ctl.time / T >= expected_cycles) {
+      ctl.dcout << "Terminating as the number of cycles reaches the expected "
+                   "number (Max no of timestep in the configuration)."
+                << std::endl;
+      return true;
+    } else {
+      return false;
+    }
+  }
+
   double R, f, T;
   int n_cycles_per_vtk;
+  unsigned int n_jump;
+  unsigned int expected_cycles;
 };
 
 template <int dim> class CojocaruCycleJump : public ConstantTimeStep<dim> {
