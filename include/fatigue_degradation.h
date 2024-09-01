@@ -232,7 +232,7 @@ public:
       double new_increment = lqph->get_initial("Fast increment", 0.0);
       double diff = lqph->get_initial("Fast increment diff", 0.0);
       double extra_increm = new_increment + n_jumps / last_jump * diff;
-      increm = n_jumps * (extra_increm + new_increment) / 2 - new_increment;
+      increm = (n_jumps - 1) * (extra_increm + new_increment) / 2;
     }
     return increm;
   };
