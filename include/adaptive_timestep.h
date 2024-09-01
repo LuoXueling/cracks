@@ -193,7 +193,11 @@ public:
                 ExcInternalError("The initial timestep has to be switched when "
                                  "reaching a quarter of a cycle."));
     ctl.set_info("Maximum jump", max_jumps);
-    expected_cycles = ctl.params.max_no_timesteps;
+    expected_cycles = std::round(
+        (ctl.params.timestep * (ctl.params.switch_timestep + 1) +
+         ctl.params.timestep_size_2 *
+             (ctl.params.max_no_timesteps - ctl.params.switch_timestep - 1)) /
+        T);
   };
 
   void initialize_timestep(Controller<dim> &ctl) {
@@ -237,7 +241,7 @@ public:
   }
 
   bool terminate(Controller<dim> &ctl) override {
-    if (ctl.time == expected_cycles) {
+    if (ctl.time / T >= expected_cycles) {
       ctl.dcout << "Terminating as the number of cycles reaches the expected "
                    "number (Max no of timestep in the configuration)."
                 << std::endl;
