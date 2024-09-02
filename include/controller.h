@@ -13,37 +13,55 @@ class PointHistory : public TransferableQuadraturePointData {
 public:
   void update(std::string name, double solution,
               std::string scheme = "latest") {
+    _update(name, solution, solution_buffer, solution_old,
+            solution_increment_buffer, scheme);
+  };
+  void _update(std::string name, double solution,
+               std::map<std::string, double> &dict,
+               std::map<std::string, double> &old_dict,
+               std::map<std::string, double> &increment_dict,
+               std::string scheme = "latest") {
     double res;
     if (scheme == "latest") {
       res = solution;
     } else if (scheme == "max") {
-      res = std::max(solution, get_initial(name, -1.0e20));
+      res = std::max(solution, _get(name, old_dict, -1.0e20));
     } else if (scheme == "min") {
-      res = std::min(solution, get_initial(name, 1.0e20));
+      res = std::min(solution, _get(name, old_dict, 1.0e20));
     } else if (scheme == "accumulate") {
-      res = solution + get_initial(name, 0.0);
+      res = solution + _get(name, old_dict, 0.0);
     } else if (scheme == "multiplicative") {
-      res = solution * get_initial(name, 1.0);
+      res = solution * _get(name, old_dict, 1.0);
     } else {
       AssertThrow(false,
                   ExcNotImplemented("Point history update scheme is illegal."));
     }
-    solution_increment_buffer[name] = res - get_initial(name, 0.0);
-    solution_buffer[name] = res;
+    increment_dict[name] = res - _get(name, old_dict, 0.0);
+    dict[name] = res;
     finalize_scheme[name] = scheme;
-  };
+  }
   double _get(std::string name, const std::map<std::string, double> &dict,
               double default_value = 0.0) const {
     // This function has to be const for pack_values so we cannot use
     // solution_dict[name]
     try {
+      return _get_from_one(name, dict);
+    } catch (...) {
+      return default_value;
+    }
+  };
+  double _get_from_one(std::string name,
+                       const std::map<std::string, double> &dict) const {
+    // This function has to be const for pack_values so we cannot use
+    // solution_dict[name]
+    try {
       auto pos = dict.find(name);
       if (pos == dict.end()) {
-        return default_value;
+        throw std::runtime_error("");
       } else
         return pos->second;
     } catch (...) {
-      return default_value;
+      throw std::runtime_error("");
     }
   };
   double get_latest(std::string name, double default_value = 0.0) const {
@@ -103,9 +121,7 @@ public:
 
   std::vector<std::string> get_names() const {
     std::vector<std::string> names;
-    for (std::map<std::string, std::string>::iterator it =
-             finalize_scheme.begin();
-         it != finalize_scheme.end(); ++it) {
+    for (auto it = finalize_scheme.begin(); it != finalize_scheme.end(); ++it) {
       names.push_back(it->first);
     }
     return names;
