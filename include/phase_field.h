@@ -225,19 +225,27 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
             degradation->derivative(old_phasefield_values[q], ctl);
         double degrade_second_derivative =
             degradation->second_derivative(old_phasefield_values[q], ctl);
-        double cw, w, w_derivative;
+        double cw, w0, w1, w2;
         if (ctl.params.phasefield_model == "AT1") {
           cw = 2.0 / 3.0;
-          w = 1;
-          w_derivative = 0;
+          w0 = old_phasefield_values[q];
+          w1 = 1;
+          w2 = 0;
         } else if (ctl.params.phasefield_model == "AT2") {
           cw = 0.5;
-          w = 2 * old_phasefield_values[q];
-          w_derivative = 2;
+          w0 = old_phasefield_values[q] * old_phasefield_values[q];
+          w1 = 2 * old_phasefield_values[q];
+          w2 = 2;
         } else {
           AssertThrow(false,
                       ExcNotImplemented("Phase field model not available."));
         }
+        lqph[q]->update(
+            "Diffusion JxW",
+            1 / (4 * cw) *
+                (w0 / ctl.params.l_phi +
+                 ctl.params.l_phi * old_phasefield_grads[q].norm_square()) *
+                fe_values.JxW(q));
 
         double fatigue_degrade, fatigue_degrade_derivative;
         Tensor<1, dim> fatigue_degrade_grad;
@@ -273,7 +281,7 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
                      Nphi_kq[i] * Nphi_kq[j] *
                          (degrade_second_derivative * H +
                           ctl.params.Gc / (2 * cw) * fatigue_degrade /
-                              (2 * ctl.params.l_phi) * w_derivative)) *
+                              (2 * ctl.params.l_phi) * w2)) *
                     fe_values.JxW(q);
               }
             }
@@ -283,7 +291,7 @@ void PhaseField<dim>::assemble_newton_system(bool residual_only,
                           ctl.params.Gc / (2 * cw) *
                               (fatigue_degrade * ctl.params.l_phi *
                                    old_phasefield_grads[q] * Bphi_kq[i] +
-                               fatigue_degrade / (2 * ctl.params.l_phi) * w *
+                               fatigue_degrade / (2 * ctl.params.l_phi) * w1 *
                                    Nphi_kq[i])) *
                          fe_values.JxW(q);
         }
