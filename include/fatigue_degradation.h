@@ -239,6 +239,62 @@ public:
   };
 };
 
+template <int dim> class JacconAccumulation : public FatigueAccumulation<dim> {
+public:
+  JacconAccumulation(Controller<dim> &ctl) : FatigueAccumulation<dim>(ctl){};
+  double increment(const std::shared_ptr<PointHistory> &lqph, double phasefield,
+                   double degrade, double degrade_derivative,
+                   double degrade_second_derivative,
+                   Controller<dim> &ctl) override {
+    double n_jumps = ctl.get_info("N jump", 0.0);
+    double increm = 0;
+    double subcycle = ctl.get_info("Subcycle", 0.0);
+
+    if (std::fmod(subcycle, 1) < 1e-8) {
+      double alpha_n1 = lqph->get_latest("Fatigue history", 0.0);
+      lqph->update("alpha_n1", alpha_n1);
+      if (std::abs(subcycle - 1) < 1e-8) {
+        double alpha_n0 = lqph->get_initial("alpha_n1", 0.0);
+        double new_increment = alpha_n1 - alpha_n0;
+        lqph->update("Trial increment", new_increment);
+        lqph->update("alpha_0", alpha_n0);
+        lqph->update("alpha_1", alpha_n1);
+      }
+    }
+    if (std::abs(subcycle - 1) < 1e-8) {
+      double alpha_n0 = lqph->get_initial("alpha_n1", 0.0);
+      double alpha_n1 = lqph->get_latest("alpha_n1", 0.0);
+      double alpha_0 = lqph->get_initial("alpha_0", 0.0);
+      double alpha_1 = lqph->get_initial("alpha_1", 0.0);
+      double residual = alpha_0 * (1 - n_jumps / 2) +
+                        (alpha_n1 + alpha_1) * (n_jumps / 2) -
+                        alpha_n0 * (1 + n_jumps / 2);
+      lqph->update_independent("Residual", residual);
+    }
+    if (std::abs(subcycle - 0) > 1e-8) {
+      // Regular accumulation
+      double dpsi =
+          lqph->get_increment_latest("Positive elastic energy") * degrade;
+      increm = (dpsi > 0 ? 1.0 : 0.0) * dpsi;
+    } else {
+      double n_trials = ctl.get_info("N trials", 0);
+      if (std::abs(n_trials) < 1e-8) {
+        increm = n_jumps *
+                 lqph->get_initial("Trial increment");
+      } else {
+        double last_increm = lqph->get_independent_initial("increm", 0.0);
+        double residual = lqph->get_independent_latest(
+            "Residual", 0.0); // pointhistory is not finalized when it has not
+                              // converged, so we need the latest one.
+        increm = last_increm - (-1) * residual;
+      }
+      lqph->update_independent("increm", increm);
+      increm -= lqph->get_initial("Trial increment"); // we are at cycle N+1
+    }
+    return increm;
+  };
+};
+
 template <int dim>
 class CarraraMeanEffectAccumulation : public FatigueAccumulation<dim> {
 public:
@@ -291,6 +347,8 @@ select_fatigue_accumulation(std::string method, Controller<dim> &ctl) {
     return std::make_unique<JonasAccumulation<dim>>(ctl);
   else if (method == "Yang")
     return std::make_unique<YangAccumulation<dim>>(ctl);
+  else if (method == "Jaccon")
+    return std::make_unique<JacconAccumulation<dim>>(ctl);
   else
     AssertThrow(false, ExcNotImplemented());
 }

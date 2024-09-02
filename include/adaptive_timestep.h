@@ -866,6 +866,12 @@ public:
       }
       ctl.output_timestep_number += (std::abs(subcycle - 1) < 1e-8) ? 0 : (-1);
     }
+    if (std::abs(subcycle - 1) < 1e-8) {
+      double crack_length =
+          GlobalEstimator::sum<dim>("Diffusion JxW", 0.0, ctl);
+      ctl.dcout << "Crack length estimated by diffusion: " << crack_length
+                << " at cycle " << ctl.output_timestep_number + 1 << std::endl;
+    }
     ctl.dcout << "The number of resolved cycles: " << n_resolved_cycles
               << std::endl;
   }
@@ -880,6 +886,207 @@ public:
 
   std::string return_solution_or_checkpoint(Controller<dim> &ctl) override {
     if (std::abs(subcycle) < 1e-8 && n_jump > 0) {
+      return "checkpoint";
+    } else {
+      return "solution";
+    }
+  }
+
+  bool terminate(Controller<dim> &ctl) override {
+    if (ctl.time / T >= expected_cycles && std::abs(subcycle - 1) < 1e-8) {
+      ctl.dcout << "Terminating as the number of cycles reaches the expected "
+                   "number (Max no of timestep in the configuration)."
+                << std::endl;
+      return true;
+    } else {
+      return false;
+    }
+  }
+};
+
+template <int dim> class JacconCycleJump : public ConstantTimeStep<dim> {
+public:
+  double f, T;
+  unsigned int n_jump;
+  unsigned int expected_cycles;
+  unsigned int n_resolved_cycles;
+
+  double trial_start;
+  double trial_start_output_time, trial_start_timestep_number;
+
+  double subcycle;
+  double initial_max_alpha;
+  unsigned int n_trials;
+  double last_last_residual, last_residual, residual;
+
+  bool refine_state;
+
+  JacconCycleJump(Controller<dim> &ctl)
+      : ConstantTimeStep<dim>(ctl), n_jump(0), n_resolved_cycles(0),
+        trial_start(-1), trial_start_output_time(-1),
+        trial_start_timestep_number(-1), subcycle(0), initial_max_alpha(1e10),
+        n_trials(0), last_last_residual(1e9), last_residual(1e8),
+        residual(1e7) {
+    if (ctl.params.fatigue_accumulation != "Jaccon") {
+      ctl.dcout << "JacconCycleJump is expected to used with "
+                   "JacconAccumulation, but it's not. Please make sure "
+                   "that the accumulation rule supports cycle jump."
+                << std::endl;
+    }
+    AssertThrow(
+        ctl.params.adaptive_timestep_parameters != "",
+        ExcInternalError("Parameters of JacconCycleJump is not assigned."));
+    std::istringstream iss(ctl.params.adaptive_timestep_parameters);
+    iss >> f >> n_jump;
+    T = 1 / f;
+    ctl.set_info("N jump", n_jump);
+    ctl.set_info("N trials", 0);
+    expected_cycles = std::round(
+        (ctl.params.timestep * (ctl.params.switch_timestep + 1) +
+         ctl.params.timestep_size_2 *
+             (ctl.params.max_no_timesteps - ctl.params.switch_timestep - 1)) /
+        T);
+    AssertThrow(
+        std::fmod(T, ctl.params.timestep) < 1e-8 &&
+            std::fmod(T, ctl.params.timestep_size_2) < 1e-8,
+        ExcInternalError("The period has to be divisible by the time step"));
+  };
+
+  void initialize_timestep(Controller<dim> &ctl) {
+    ctl.dcout << "JacconCycleJump using parameter: f=" << f
+              << " Hz, n_jump=" << n_jump << std::endl;
+    ctl.params.save_vtk_per_step = 1e10;
+    ctl.dcout << "JacconCycleJump will save outputs at the end of a successful "
+                 "cycle jump."
+              << std::endl;
+  }
+
+  double current_timestep(Controller<dim> &ctl) override {
+    double time_step = ctl.current_timestep;
+    if (std::abs(subcycle - 1) < 1e-8 && n_resolved_cycles >= 1) {
+      trial_start = ctl.time;
+      trial_start_output_time = ctl.output_timestep_number;
+      trial_start_timestep_number = ctl.timestep_number;
+      time_step = T * (n_jump - 1);
+      ctl.dcout << "Doing cycle jump" << std::endl;
+      refine_state = ctl.params.refine;
+      if (refine_state) {
+        ctl.dcout << "Refinement is disabled temporarily" << std::endl;
+      }
+      ctl.params.refine = false; // We need the checkpoint work.
+    } else if (n_resolved_cycles >= 1) {
+      ctl.dcout << "*********************************" << std::endl;
+      ctl.dcout << "********** Trial cycle **********" << std::endl;
+      ctl.dcout << "*********************************" << std::endl;
+      ctl.dcout << "The number of trial iterations: " << n_trials + 1
+                << std::endl;
+    }
+
+    if (std::abs(subcycle - 1) > 1e-8) {
+      subcycle += std::fmod(ctl.current_timestep / T, 1);
+    } else {
+      subcycle = 0.0;
+    }
+    ctl.set_info("Subcycle", subcycle);
+    ctl.dcout << "Current subcycle: " << subcycle << std::endl;
+    return time_step;
+  }
+
+  bool fail(double newton_reduction, Controller<dim> &ctl) override {
+    if (std::abs(subcycle - 1) < 1e-8 && n_resolved_cycles >= 1) {
+      residual = GlobalEstimator::absmax<dim>("Residual", 0.0, ctl);
+      ctl.dcout << "Current max trapezoidal residual: " << residual
+                << " Target: " << initial_max_alpha * 1e-6 << std::endl;
+      return residual > initial_max_alpha * 1e-6;
+    } else {
+      return newton_reduction > ctl.params.upper_newton_rho;
+    }
+  }
+
+  double get_new_timestep_when_fail(Controller<dim> &ctl) override {
+    if (std::abs(subcycle - 1) < 1e-8 && n_resolved_cycles >= 1) {
+      ctl.time = trial_start;
+      ctl.timestep_number = trial_start_timestep_number;
+      ctl.output_timestep_number = trial_start_output_time;
+
+      subcycle = 0;
+      ctl.set_info("Subcycle", subcycle);
+      n_trials++;
+      ctl.set_info("N trials", n_trials);
+      n_resolved_cycles++;
+
+      trial_start = ctl.time;
+      trial_start_output_time = ctl.output_timestep_number;
+      trial_start_timestep_number = ctl.timestep_number;
+
+      ctl.dcout << "Trial jump failed (the global highest residual is higher "
+                   "than the tolerance). Returning to time ("
+                << trial_start_timestep_number - 1 << ") " << trial_start
+                << " and jump again" << std::endl;
+    }
+    return T * (n_jump - 1);
+  }
+
+  void failure_criteria(Controller<dim> &ctl) override {
+    if (!(std::abs(subcycle) < 1e-8 && n_resolved_cycles >= 1)) {
+      throw std::runtime_error("Staggered scheme does not converge when no"
+                               "cycle jump is performed.");
+    } else if (n_trials > 100 ||
+               (last_residual > last_last_residual * 0.999 &&
+                residual > last_residual * 0.999) ||
+               residual > last_residual * 1.2) {
+      throw std::runtime_error(
+          "Trapezoidal iterative extrapolation does not converge. Consider "
+          "using a smaller cycle jump.");
+    } else {
+      last_last_residual = last_residual;
+      last_residual = residual;
+    }
+  }
+
+  void after_step(Controller<dim> &ctl) override {
+    if (std::abs(subcycle - 1) < 1e-8 && n_resolved_cycles >= 1) {
+      ctl.output_timestep_number += n_jump - 1;
+      ctl.dcout << "Cycle jump is done successfully. The number of trials: "
+                << n_trials + 1 << std::endl;
+      n_resolved_cycles++;
+      n_trials = 0;
+      ctl.set_info("N trials", 0);
+      last_last_residual = 1e9;
+      last_residual = 1e8;
+      residual = 1e7;
+      this->save_results = true;
+      ctl.params.refine = refine_state;
+    } else {
+      if (std::abs(subcycle - 1) < 1e-8) {
+        n_resolved_cycles++;
+      }
+      ctl.output_timestep_number += (std::abs(subcycle - 1) < 1e-8) ? 0 : (-1);
+    }
+    if (std::abs(subcycle) < 1e-8 && n_trials == 0) {
+      initial_max_alpha =
+          GlobalEstimator::absmax<dim>("Fatigue history", 0.0, ctl);
+    }
+    if (std::abs(subcycle - 1) < 1e-8) {
+      double crack_length =
+          GlobalEstimator::sum<dim>("Diffusion JxW", 0.0, ctl);
+      ctl.dcout << "Crack length estimated by diffusion: " << crack_length
+                << " at cycle " << ctl.output_timestep_number + 1 << std::endl;
+    }
+    ctl.dcout << "The number of resolved cycles: " << n_resolved_cycles
+              << std::endl;
+  }
+
+  bool save_checkpoint(Controller<dim> &ctl) override {
+    if (std::abs(subcycle - 1) < 1e-8 && n_resolved_cycles >= 1) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  std::string return_solution_or_checkpoint(Controller<dim> &ctl) override {
+    if (std::abs(subcycle) < 1e-8 && n_resolved_cycles >= 1) {
       return "checkpoint";
     } else {
       return "solution";
@@ -913,6 +1120,8 @@ select_adaptive_timestep(std::string method, Controller<dim> &ctl) {
     return std::make_unique<JonasCycleJump<dim>>(ctl);
   else if (method == "YangCycleJump")
     return std::make_unique<YangCycleJump<dim>>(ctl);
+  else if (method == "JacconCycleJump")
+    return std::make_unique<JacconCycleJump<dim>>(ctl);
   else
     AssertThrow(false, ExcNotImplemented());
 }

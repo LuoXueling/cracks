@@ -102,7 +102,7 @@ void Runtime::subsection_declare_parameters(ParameterHandler &prm) {
     prm.declare_entry(
         "Adaptive timestep", "exponential",
         Patterns::Selection("exponential|constant|KristensenCLA|"
-                            "CojocaruCycleJump|JonasCycleJump|YangCycleJump"));
+                            "CojocaruCycleJump|JonasCycleJump|YangCycleJump|JacconCycleJump"));
     prm.declare_entry("Adaptive timestep parameters", "", Patterns::Anything());
     prm.declare_entry("Timestep size", "1.0", Patterns::Double(0));
 
@@ -257,7 +257,7 @@ void Material::subsection_declare_parameters(ParameterHandler &prm) {
     prm.declare_entry(
         "Fatigue accumulation", "CarraraNoMeanEffect",
         Patterns::Selection("CarraraNoMeanEffect|CarraraMeanEffect|Kristensen|"
-                            "KristensenCLA|CojocaruCLA|Jonas|Yang"));
+                            "KristensenCLA|CojocaruCLA|Jonas|Yang|Jaccon"));
     prm.declare_entry("Fatigue accumulation parameters", "",
                       Patterns::Anything());
   }
