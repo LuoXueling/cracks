@@ -20,7 +20,7 @@ double sum(std::string name, double default_value, Controller<dim> &ctl) {
       const std::vector<std::shared_ptr<PointHistory>> lqph =
           ctl.quadrature_point_history.get_data(cell);
       for (unsigned int q = 0; q < n_q_points; ++q) {
-        local_integration += lqph[q]->get_latest(name, default_value);
+        local_integration += lqph[q]->get_either_latest(name, default_value);
       }
     }
   }
@@ -40,7 +40,8 @@ double abssum(std::string name, double default_value, Controller<dim> &ctl) {
       const std::vector<std::shared_ptr<PointHistory>> lqph =
           ctl.quadrature_point_history.get_data(cell);
       for (unsigned int q = 0; q < n_q_points; ++q) {
-        local_integration += std::abs(lqph[q]->get_latest(name, default_value));
+        local_integration +=
+            std::abs(lqph[q]->get_either_latest(name, default_value));
       }
     }
   }
@@ -60,8 +61,8 @@ double max(std::string name, double default_value, Controller<dim> &ctl) {
       const std::vector<std::shared_ptr<PointHistory>> lqph =
           ctl.quadrature_point_history.get_data(cell);
       for (unsigned int q = 0; q < n_q_points; ++q) {
-        local_max =
-            std::max(lqph[q]->get_latest(name, default_value), local_max);
+        local_max = std::max(lqph[q]->get_either_latest(name, default_value),
+                             local_max);
       }
     }
   }
@@ -80,8 +81,9 @@ double absmax(std::string name, double default_value, Controller<dim> &ctl) {
       const std::vector<std::shared_ptr<PointHistory>> lqph =
           ctl.quadrature_point_history.get_data(cell);
       for (unsigned int q = 0; q < n_q_points; ++q) {
-        local_max = std::max(std::abs(lqph[q]->get_latest(name, default_value)),
-                             local_max);
+        local_max =
+            std::max(std::abs(lqph[q]->get_either_latest(name, default_value)),
+                     local_max);
       }
     }
   }

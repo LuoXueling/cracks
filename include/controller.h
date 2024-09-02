@@ -16,6 +16,12 @@ public:
     _update(name, solution, solution_buffer, solution_old,
             solution_increment_buffer, scheme);
   };
+  void update_independent(std::string name, double solution,
+                          std::string scheme = "latest") {
+    _update(name, solution, solution_independent_buffer,
+            solution_independent_old, solution_independent_increment_buffer,
+            scheme);
+  };
   void _update(std::string name, double solution,
                std::map<std::string, double> &dict,
                std::map<std::string, double> &old_dict,
@@ -50,6 +56,22 @@ public:
       return default_value;
     }
   };
+  double _get_either(std::string name,
+                     const std::map<std::string, double> &dict1,
+                     const std::map<std::string, double> &dict2,
+                     double default_value = 0.0) const {
+    // This function has to be const for pack_values so we cannot use
+    // solution_dict[name]
+    try {
+      try {
+        return _get_from_one(name, dict1);
+      } catch (...) {
+        return _get_from_one(name, dict2);
+      }
+    } catch (...) {
+      return default_value;
+    }
+  };
   double _get_from_one(std::string name,
                        const std::map<std::string, double> &dict) const {
     // This function has to be const for pack_values so we cannot use
@@ -78,6 +100,41 @@ public:
                                double default_value = 0.0) const {
     return _get(name, solution_increment_old, default_value);
   };
+  double get_independent_latest(std::string name,
+                                double default_value = 0.0) const {
+    return _get(name, solution_independent_buffer, default_value);
+  };
+  double get_independent_initial(std::string name,
+                                 double default_value = 0.0) const {
+    return _get(name, solution_independent_old, default_value);
+  };
+  double get_independent_increment_latest(std::string name,
+                                          double default_value = 0.0) const {
+    return _get(name, solution_independent_increment_buffer, default_value);
+  };
+  double get_independent_increment_initial(std::string name,
+                                           double default_value = 0.0) const {
+    return _get(name, solution_independent_increment_old, default_value);
+  };
+  double get_either_latest(std::string name, double default_value = 0.0) const {
+    return _get_either(name, solution_buffer, solution_independent_buffer,
+                       default_value);
+  };
+  double get_either_initial(std::string name,
+                            double default_value = 0.0) const {
+    return _get_either(name, solution_old, solution_independent_old,
+                       default_value);
+  };
+  double get_either_increment_latest(std::string name,
+                                     double default_value = 0.0) const {
+    return _get_either(name, solution_increment_buffer,
+                       solution_independent_increment_buffer, default_value);
+  };
+  double get_either_increment_initial(std::string name,
+                                      double default_value = 0.0) const {
+    return _get_either(name, solution_increment_old,
+                       solution_independent_increment_old, default_value);
+  };
   void finalize() {
     typename std::map<std::string, double>::iterator it;
     for (it = solution_buffer.begin(); it != solution_buffer.end(); it++) {
@@ -86,6 +143,14 @@ public:
     for (it = solution_increment_buffer.begin();
          it != solution_increment_buffer.end(); it++) {
       solution_increment_old[it->first] = it->second;
+    }
+    for (it = solution_independent_buffer.begin();
+         it != solution_independent_buffer.end(); it++) {
+      solution_independent_old[it->first] = it->second;
+    }
+    for (it = solution_independent_increment_buffer.begin();
+         it != solution_independent_increment_buffer.end(); it++) {
+      solution_independent_increment_old[it->first] = it->second;
     }
   }
 
@@ -97,10 +162,10 @@ public:
     Assert(values.size() == finalize_scheme.size() * 2, ExcInternalError());
     std::vector<std::string> names = get_names();
     for (unsigned int i = 0; i < finalize_scheme.size() * 2; ++i) {
-      values[i] =
-          i < finalize_scheme.size()
-              ? get_initial(names[i], 0.0)
-              : get_increment_initial(names[i - finalize_scheme.size()], 0.0);
+      values[i] = i < finalize_scheme.size()
+                      ? get_either_initial(names[i], 0.0)
+                      : get_either_increment_initial(
+                            names[i - finalize_scheme.size()], 0.0);
     }
   }
 
@@ -109,12 +174,26 @@ public:
     std::vector<std::string> names = get_names();
     for (unsigned int i = 0; i < finalize_scheme.size() * 2; ++i) {
       if (i < finalize_scheme.size()) {
-        solution_buffer[names[i]] = values[i];
-        solution_old[names[i]] = values[i];
+        if (solution_buffer.find(names[i]) != solution_buffer.end()) {
+          solution_buffer[names[i]] = values[i];
+          solution_old[names[i]] = values[i];
+        } else {
+          solution_independent_buffer[names[i]] = values[i];
+          solution_independent_old[names[i]] = values[i];
+        }
       } else {
-        solution_increment_buffer[names[i - finalize_scheme.size()]] =
-            values[i];
-        solution_increment_old[names[i - finalize_scheme.size()]] = values[i];
+        if (solution_buffer.find(names[i]) != solution_buffer.end()) {
+          solution_increment_buffer[names[i - finalize_scheme.size()]] =
+              values[i];
+          solution_increment_old[names[i - finalize_scheme.size()]] = values[i];
+        } else {
+          solution_independent_increment_buffer[names[i -
+                                                      finalize_scheme.size()]] =
+              values[i];
+          solution_independent_increment_old[names[i -
+                                                   finalize_scheme.size()]] =
+              values[i];
+        }
       }
     }
   }
@@ -131,6 +210,11 @@ public:
   std::map<std::string, double> solution_old;
   std::map<std::string, double> solution_increment_buffer;
   std::map<std::string, double> solution_increment_old;
+  // The following two are not recorded in checkpoints
+  std::map<std::string, double> solution_independent_buffer;
+  std::map<std::string, double> solution_independent_old;
+  std::map<std::string, double> solution_independent_increment_buffer;
+  std::map<std::string, double> solution_independent_increment_old;
 
   inline static std::map<std::string, std::string> finalize_scheme;
 };
