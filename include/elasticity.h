@@ -51,7 +51,8 @@ void Elasticity<dim>::assemble_newton_system(bool residual_only,
                                              Controller<dim> &ctl) {
   (this->system_rhs).block(this->block_id("elasticity")) = 0;
   if (!residual_only) {
-    (this->system_matrix).block(this->block_id("elasticity"), this->block_id("phasefield")) = 0;
+    (this->system_matrix)
+        .block(this->block_id("elasticity"), this->block_id("phasefield")) = 0;
   }
 
   FEValues<dim> fe_values((this->fe), ctl.quadrature_formula,
@@ -381,7 +382,8 @@ template <int dim> void Elasticity<dim>::compute_load(Controller<dim> &ctl) {
               ctl.quadrature_point_history.get_data(cell);
           double phasefield = 0;
           for (unsigned int q_point = 0; q_point < n_q_points; ++q_point) {
-            phasefield += lqph[q_point]->get_latest("Phase field", 0.0) / n_q_points;
+            phasefield +=
+                lqph[q_point]->get_latest("Phase field", 0.0) / n_q_points;
           }
           double degrade = degradation->value(phasefield, ctl);
 
@@ -408,7 +410,7 @@ template <int dim> void Elasticity<dim>::compute_load(Controller<dim> &ctl) {
                 stress_positive, stress_negative, constitutive_law);
 
             load_value[face->boundary_id()] +=
-                degrade * stress_positive *
+                (degrade * stress_positive + stress_negative) *
                 fe_face_values.normal_vector(q_point) *
                 fe_face_values.JxW(q_point);
           }
