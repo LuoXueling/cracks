@@ -101,8 +101,9 @@ void Runtime::subsection_declare_parameters(ParameterHandler &prm) {
 
     prm.declare_entry(
         "Adaptive timestep", "exponential",
-        Patterns::Selection("exponential|constant|KristensenCLA|"
-                            "CojocaruCycleJump|JonasCycleJump|YangCycleJump|JacconCycleJump"));
+        Patterns::Selection(
+            "exponential|constant|KristensenCLA|"
+            "CojocaruCycleJump|JonasCycleJump|YangCycleJump|JacconCycleJump"));
     prm.declare_entry("Adaptive timestep parameters", "", Patterns::Anything());
     prm.declare_entry("Timestep size", "1.0", Patterns::Double(0));
 
@@ -119,7 +120,8 @@ void Runtime::subsection_declare_parameters(ParameterHandler &prm) {
     prm.declare_entry("Newton maximum steps", "10", Patterns::Integer(0));
 
     prm.declare_entry("Upper Newton rho", "0.999", Patterns::Double(0));
-    prm.declare_entry("Allow skip first Newton iteration", "true", Patterns::Bool());
+    prm.declare_entry("Allow skip first Newton iteration", "true",
+                      Patterns::Bool());
 
     prm.declare_entry(
         "Adjustment method", "linesearch",
@@ -257,7 +259,8 @@ void Material::subsection_declare_parameters(ParameterHandler &prm) {
     prm.declare_entry(
         "Fatigue accumulation", "CarraraNoMeanEffect",
         Patterns::Selection("CarraraNoMeanEffect|CarraraMeanEffect|Kristensen|"
-                            "KristensenCLA|CojocaruCLA|Jonas|Yang|Jaccon"));
+                            "KristensenCLA|CojocaruCLA|Jonas|JonasNodegrade|"
+                            "Yang|Jaccon|JacconNodegrade"));
     prm.declare_entry("Fatigue accumulation parameters", "",
                       Patterns::Anything());
   }

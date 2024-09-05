@@ -18,6 +18,8 @@ public:
     double increm = increment(lqph_q, phasefield, degrade, degrade_derivative,
                               degrade_second_derivative, ctl);
     lqph_q->update("Fatigue history", increm, "accumulate");
+    record(lqph_q, phasefield, degrade, degrade_derivative,
+           degrade_second_derivative, ctl);
   }
 
   virtual double increment(const std::shared_ptr<PointHistory> &lqph,
@@ -26,6 +28,17 @@ public:
                            double degrade_second_derivative,
                            Controller<dim> &ctl) {
     AssertThrow(false, ExcNotImplemented());
+  };
+
+  virtual void record(const std::shared_ptr<PointHistory> &lqph,
+                      double phasefield, double degrade,
+                      double degrade_derivative,
+                      double degrade_second_derivative, Controller<dim> &ctl) {
+    // If one is using the latest fatigue history to record something, it's
+    // necessary to record it in this function, because if solving the phase
+    // field first and then the displacement, and the multistep staggered is not
+    // triggered, the record in increment() is still using the old fatigue
+    // variable updated by old elastic energy. The issue happens in VHCF.
   };
 };
 
@@ -176,14 +189,8 @@ public:
                    Controller<dim> &ctl) override {
     int n_jumps = static_cast<int>(ctl.get_info("N jump", 0.0));
     double increm = 0;
-    double subcycle = ctl.get_info("Subcycle", 0.0);
     double trial_cycle = ctl.get_info("Trial cycle", 0.0);
-    if (std::fmod(subcycle, 1) < 1e-8 && subcycle < 5 && subcycle > 1e-8) {
-      // y1, y2, y3, and y4
-      lqph->update(
-          "y" + std::to_string(static_cast<unsigned int>(std::round(subcycle))),
-          lqph->get_latest("Fatigue history", 0.0));
-    }
+
     if (n_jumps == 0 && std::abs(trial_cycle) < 1e-8) {
       // Regular accumulation
       double dpsi =
@@ -199,6 +206,32 @@ public:
     }
     return increm;
   };
+
+  void record(const std::shared_ptr<PointHistory> &lqph, double phasefield,
+              double degrade, double degrade_derivative,
+              double degrade_second_derivative, Controller<dim> &ctl) {
+    double subcycle = ctl.get_info("Subcycle", 0.0);
+    if (std::fmod(subcycle, 1) < 1e-8 && subcycle < 5 && subcycle > 1e-8) {
+      // y1, y2, y3, and y4
+      lqph->update(
+          "y" + std::to_string(static_cast<unsigned int>(std::round(subcycle))),
+          lqph->get_latest("Fatigue history", 0.0));
+    }
+  }
+};
+
+template <int dim>
+class JonasNodegradeAccumulation : public JonasAccumulation<dim> {
+public:
+  JonasNodegradeAccumulation(Controller<dim> &ctl)
+      : JonasAccumulation<dim>(ctl){};
+  double increment(const std::shared_ptr<PointHistory> &lqph, double phasefield,
+                   double degrade, double degrade_derivative,
+                   double degrade_second_derivative,
+                   Controller<dim> &ctl) override {
+    return JonasAccumulation<dim>::increment(
+        lqph, phasefield, ctl.params.constant_k + 1, -2.0, 0.0, ctl);
+  };
 };
 
 template <int dim> class YangAccumulation : public FatigueAccumulation<dim> {
@@ -212,17 +245,6 @@ public:
     double increm = 0;
     double subcycle = ctl.get_info("Subcycle", 0.0);
 
-    if (std::fmod(subcycle, 1) < 1e-8) {
-      lqph->update("Initial history", lqph->get_latest("Fatigue history", 0.0));
-      if (std::abs(subcycle - 1) < 1e-8) {
-        double new_increment = lqph->get_latest("Fatigue history", 0.0) -
-                               lqph->get_initial("Initial history", 0.0);
-        double old_increment =
-            lqph->get_initial("Fast increment", new_increment);
-        lqph->update("Fast increment", new_increment);
-        lqph->update("Fast increment diff", new_increment - old_increment);
-      }
-    }
     if (std::abs(subcycle - 0) > 1e-8 || std::abs(n_jumps) < 1e-8) {
       // Regular accumulation
       double dpsi =
@@ -237,6 +259,24 @@ public:
     }
     return increm;
   };
+
+  void record(const std::shared_ptr<PointHistory> &lqph, double phasefield,
+              double degrade, double degrade_derivative,
+              double degrade_second_derivative, Controller<dim> &ctl) {
+    double subcycle = ctl.get_info("Subcycle", 0.0);
+
+    if (std::fmod(subcycle, 1) < 1e-8) {
+      lqph->update("Initial history", lqph->get_latest("Fatigue history", 0.0));
+      if (std::abs(subcycle - 1) < 1e-8) {
+        double new_increment = lqph->get_latest("Fatigue history", 0.0) -
+                               lqph->get_initial("Initial history", 0.0);
+        double old_increment =
+            lqph->get_initial("Fast increment", new_increment);
+        lqph->update("Fast increment", new_increment);
+        lqph->update("Fast increment diff", new_increment - old_increment);
+      }
+    }
+  }
 };
 
 template <int dim> class JacconAccumulation : public FatigueAccumulation<dim> {
@@ -250,6 +290,33 @@ public:
     double increm = 0;
     double subcycle = ctl.get_info("Subcycle", 0.0);
 
+    if (std::abs(subcycle - 0) > 1e-8) {
+      // Regular accumulation
+      double dpsi =
+          lqph->get_increment_latest("Positive elastic energy") * degrade;
+      increm = (dpsi > 0 ? 1.0 : 0.0) * dpsi;
+    } else {
+      double n_trials = ctl.get_info("N trials", 0);
+      if (std::abs(n_trials) < 1e-8) {
+        increm = n_jumps * lqph->get_initial("Trial increment");
+      } else {
+        double last_increm = lqph->get_independent_initial("increm", 0.0);
+        double residual = lqph->get_independent_latest(
+            "Residual", 0.0); // pointhistory is not finalized when it has not
+                              // converged, so we need the latest one.
+        increm = last_increm - (-1) * residual;
+      }
+      lqph->update_independent("increm", increm);
+      increm -= lqph->get_initial("Trial increment"); // we are at cycle N+1
+    }
+    return increm;
+  };
+
+  void record(const std::shared_ptr<PointHistory> &lqph, double phasefield,
+              double degrade, double degrade_derivative,
+              double degrade_second_derivative, Controller<dim> &ctl) {
+    double n_jumps = ctl.get_info("N jump", 0.0);
+    double subcycle = ctl.get_info("Subcycle", 0.0);
     if (std::fmod(subcycle, 1) < 1e-8) {
       double alpha_n1 = lqph->get_latest("Fatigue history", 0.0);
       lqph->update("alpha_n1", alpha_n1);
@@ -271,27 +338,20 @@ public:
                         alpha_n0 * (1 + n_jumps / 2);
       lqph->update_independent("Residual", residual);
     }
-    if (std::abs(subcycle - 0) > 1e-8) {
-      // Regular accumulation
-      double dpsi =
-          lqph->get_increment_latest("Positive elastic energy") * degrade;
-      increm = (dpsi > 0 ? 1.0 : 0.0) * dpsi;
-    } else {
-      double n_trials = ctl.get_info("N trials", 0);
-      if (std::abs(n_trials) < 1e-8) {
-        increm = n_jumps *
-                 lqph->get_initial("Trial increment");
-      } else {
-        double last_increm = lqph->get_independent_initial("increm", 0.0);
-        double residual = lqph->get_independent_latest(
-            "Residual", 0.0); // pointhistory is not finalized when it has not
-                              // converged, so we need the latest one.
-        increm = last_increm - (-1) * residual;
-      }
-      lqph->update_independent("increm", increm);
-      increm -= lqph->get_initial("Trial increment"); // we are at cycle N+1
-    }
-    return increm;
+  }
+};
+
+template <int dim>
+class JacconNodegradeAccumulation : public JacconAccumulation<dim> {
+public:
+  JacconNodegradeAccumulation(Controller<dim> &ctl)
+      : JacconAccumulation<dim>(ctl){};
+  double increment(const std::shared_ptr<PointHistory> &lqph, double phasefield,
+                   double degrade, double degrade_derivative,
+                   double degrade_second_derivative,
+                   Controller<dim> &ctl) override {
+    return JacconAccumulation<dim>::increment(
+        lqph, phasefield, ctl.params.constant_k + 1, -2.0, 0.0, ctl);
   };
 };
 
@@ -345,10 +405,14 @@ select_fatigue_accumulation(std::string method, Controller<dim> &ctl) {
     return std::make_unique<CojocaruCLAAccumulation<dim>>(ctl);
   else if (method == "Jonas")
     return std::make_unique<JonasAccumulation<dim>>(ctl);
+  else if (method == "JonasNodegrade")
+    return std::make_unique<JonasNodegradeAccumulation<dim>>(ctl);
   else if (method == "Yang")
     return std::make_unique<YangAccumulation<dim>>(ctl);
   else if (method == "Jaccon")
     return std::make_unique<JacconAccumulation<dim>>(ctl);
+  else if (method == "JacconNodegrade")
+    return std::make_unique<JacconNodegradeAccumulation<dim>>(ctl);
   else
     AssertThrow(false, ExcNotImplemented());
 }

@@ -81,7 +81,7 @@ public:
  */
 template <int dim> class AndersonNewton : public NewtonVariation<dim> {
 public:
-  AndersonNewton(Controller<dim> &ctl): NewtonVariation<dim>(ctl){};
+  AndersonNewton(Controller<dim> &ctl) : NewtonVariation<dim>(ctl){};
   void apply_increment(LA::MPI::BlockVector &negative_increment,
                        LA::MPI::BlockVector &solution,
                        LA::MPI::BlockSparseMatrix &system_matrix,
@@ -117,7 +117,8 @@ public:
   LA::MPI::BlockVector last_negative_increment;
 };
 
-template <int dim> class KristensenModifiedNewton : public NewtonVariation<dim> {
+template <int dim>
+class KristensenModifiedNewton : public NewtonVariation<dim> {
 public:
   KristensenModifiedNewton(Controller<dim> &ctl)
       : NewtonVariation<dim>(ctl), record_c(0), record_i(0), ever_built(false) {
@@ -142,7 +143,8 @@ public:
     if (!ever_built ||
         (record_c <= ctl.last_refinement_timestep_number && info.i_step) ||
         ctl.timestep_number == 0 || record_i > n_i ||
-        (ctl.timestep_number - record_c) > n_c) {
+        (ctl.timestep_number - record_c) > n_c ||
+        info.new_residual > info.old_residual * 10) {
       record_i = 0;
       record_c = ctl.timestep_number;
       ever_built = true;
