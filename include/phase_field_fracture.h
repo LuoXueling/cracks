@@ -120,8 +120,8 @@ template <int dim> double PhaseFieldFracture<dim>::staggered_scheme() {
     for (unsigned int cnt = 0; cnt < (this->ctl).params.max_multipass; ++cnt) {
       newton_reduction_phasefield = solve_phase_field_subproblem();
       newton_reduction_elasticity = solve_elasticity_subproblem();
+      phasefield.update_newton_residual(this->ctl);
       if ((this->ctl).params.multipass_staggered) {
-        phasefield.update_newton_residual(this->ctl);
         phasefield_residual = get_norm(phasefield.system_rhs, (this->ctl).params.norm_type);
         (this->ctl).dcout << "Phase field residual: " << phasefield_residual
                           << std::endl;
