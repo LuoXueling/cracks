@@ -261,7 +261,7 @@ void AbstractField<dim>::setup_neumann_boundary_condition(
     LA::MPI::BlockVector &neumann_rhs, Controller<dim> &ctl) {
 
   ctl.debug_dcout << "Setting neumann boundary" << std::endl;
-  neumann_rhs.reinit(this->fields_locally_owned_dofs);
+  neumann_rhs = 0;
 
   const QGaussLobatto<dim - 1> face_quadrature_formula(ctl.params.poly_degree + 1);
   const unsigned int n_face_q_points = face_quadrature_formula.size();
@@ -316,14 +316,14 @@ void AbstractField<dim>::setup_neumann_boundary_condition(
                 }
               }
               cell->get_dof_indices(local_dof_indices);
-              for (unsigned int i = 0; i < dofs_per_cell; ++i) {
-                neumann_rhs(local_dof_indices[i]) += cell_rhs(i);
-              }
+              constraints_all.distribute_local_to_global(
+                  cell_rhs, local_dof_indices, neumann_rhs);
             }
           }
         }
     }
   }
+  neumann_rhs.compress(VectorOperation::add);
 }
 
 template <int dim>
