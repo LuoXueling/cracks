@@ -111,10 +111,12 @@ public:
       n_jump = 1;
     }
     ctl.set_info("N jump", 1);
-    AssertThrow(ctl.params.timestep * (ctl.params.switch_timestep + 1) ==
-                    0.25 * T,
-                ExcInternalError("The initial timestep has to be switched when "
-                                 "reaching a quarter of a cycle."));
+    if (ctl.params.timestep * (ctl.params.switch_timestep + 1) != 0.25 * T) {
+      ctl.dcout << "The initial timestep has to be switched when "
+                   "reaching a quarter of a cycle. Otherwise a phase has to be "
+                   "assigned in the cyclic boundary condition."
+                << std::endl;
+    }
     n_cycles_per_vtk = static_cast<int>(std::round(
         ctl.params.save_vtk_per_step / (T / ctl.params.timestep_size_2)));
     expected_cycles = std::round(
@@ -152,6 +154,9 @@ public:
     } else {
       ctl.output_timestep_number += (std::fmod(ctl.time, T) < 1e-8) ? 0 : (-1);
     }
+    ctl.dcout << "Maximum fatigue variable: "
+              << GlobalEstimator::max<dim>("Fatigue history", 0.0, ctl)
+              << std::endl;
   }
 
   bool terminate(Controller<dim> &ctl) override {
@@ -328,6 +333,10 @@ public:
     AssertThrow(
         std::fmod(T, ctl.params.timestep) < 1e-8 &&
             std::fmod(T, ctl.params.timestep_size_2) < 1e-8,
+        ExcInternalError("The period has to be divisible by the time step"));
+    AssertThrow(
+        std::fmod(T - ctl.params.timestep * (ctl.params.switch_timestep + 1),
+                  ctl.params.timestep_size_2) < 1e-8,
         ExcInternalError("The period has to be divisible by the time step"));
   };
 
@@ -723,6 +732,10 @@ public:
         std::fmod(T, ctl.params.timestep) < 1e-8 &&
             std::fmod(T, ctl.params.timestep_size_2) < 1e-8,
         ExcInternalError("The period has to be divisible by the time step"));
+    AssertThrow(
+        std::fmod(T - ctl.params.timestep * (ctl.params.switch_timestep + 1),
+                  ctl.params.timestep_size_2) < 1e-8,
+        ExcInternalError("The period has to be divisible by the time step"));
     tol = epsilon * 1e5 * E * epsilon_max * epsilon_max / 2;
     ctl.set_info("Last jump", last_jump);
   };
@@ -950,6 +963,10 @@ public:
         std::fmod(T, ctl.params.timestep) < 1e-8 &&
             std::fmod(T, ctl.params.timestep_size_2) < 1e-8,
         ExcInternalError("The period has to be divisible by the time step"));
+    AssertThrow(
+        std::fmod(T - ctl.params.timestep * (ctl.params.switch_timestep + 1),
+                  ctl.params.timestep_size_2) < 1e-8,
+        ExcInternalError("The period has to be divisible by the time step"));
   };
 
   void initialize_timestep(Controller<dim> &ctl) {
@@ -1073,6 +1090,9 @@ public:
       ctl.dcout << "Crack length estimated by diffusion: " << crack_length
                 << " at cycle " << ctl.output_timestep_number + 1 << std::endl;
     }
+    ctl.dcout << "Maximum fatigue variable: "
+              << GlobalEstimator::max<dim>("Fatigue history", 0.0, ctl)
+              << std::endl;
     ctl.dcout << "The number of resolved cycles: " << n_resolved_cycles
               << std::endl;
   }
