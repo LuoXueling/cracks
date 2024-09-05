@@ -236,7 +236,7 @@ public:
   MPI_Comm mpi_com;
 
   parallel::distributed::Triangulation<dim> triangulation;
-  QGauss<dim> quadrature_formula;
+  QGaussLobatto<dim> quadrature_formula;
   Parameters::AllParameters params;
 
   ConditionalOStream dcout;
