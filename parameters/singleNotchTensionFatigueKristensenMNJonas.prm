@@ -1,7 +1,7 @@
 subsection Project
   set Project name = singleNotchTensionFatigueKristensen
   set Mesh from = ../meshes/singleNotchDense.inp
-  set Boundary from = ../meshes/singleNotchTensionCyclicKristensenJaccon_boundary.txt
+  set Boundary from = ../meshes/singleNotchTensionCyclicKristensen_boundary.txt
   set Output directory = ../output/
   set Load sequence from = script
   set Enable phase field = true
@@ -13,11 +13,11 @@ end
 
 subsection Runtime
   # Time step
-  set Adaptive timestep = JacconCycleJump
-  set Adaptive timestep parameters = 1 512
-  set Max No of timesteps = 240000
-  set Timestep size = 0.5
-  set Timestep size to switch to = 0.5
+  set Adaptive timestep = JonasCycleJump
+  set Adaptive timestep parameters = 0 1 14.0625 1
+  set Max No of timesteps = 480000
+  set Timestep size = 0.25
+  set Timestep size to switch to = 0.25
   set Switch timestep after steps = 0
 
   # Solver
@@ -61,7 +61,7 @@ subsection Material
     set Phase field length scale = 0.016
     set Plane state = strain
     set Fatigue degradation = KristensenAsymptotic
-    set Fatigue accumulation = JacconNodegrade
+    set Fatigue accumulation = JonasNodegrade
 end
 
 subsection Finite element system

@@ -35,6 +35,12 @@ subsection Runtime
   set Save vtk per step = 100
 
   # Phase field scheme
+  set Use monolithic = false
+  set Use multipass staggered = true
+  set Maximum number of multipass steps = 20
+  set Residual tolerance of multipass = 1e-8
+  set Quit multipass if residual increasing = true
+
   # "linear" to solve K_phi * phi = r_phi
   # "newton" to solve K_phi * delta phi = r_phi, phi = phi - delta phi
   set Phase field update = newton

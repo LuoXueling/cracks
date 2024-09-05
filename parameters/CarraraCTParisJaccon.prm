@@ -1,6 +1,6 @@
 subsection Project
   set Project name = CarraraCTParis
-  set Mesh from = ../meshes/CT022.inp
+  set Mesh from = ../meshes/CT022L5.inp
   set Boundary from = ../meshes/CarraraCTParis_boundary.txt
   set Output directory = ../output/
   set Load sequence from = script
@@ -14,7 +14,7 @@ end
 subsection Runtime
   # Time step
   set Adaptive timestep = JacconCycleJump
-  set Adaptive timestep parameters = 1 10
+  set Adaptive timestep parameters = 1 8
   set Max No of timesteps = 5000
   set Timestep size = 0.25
   set Timestep size to switch to = 0.25
@@ -38,7 +38,7 @@ subsection Runtime
   set Use multipass staggered = true
   set Maximum number of multipass steps = 20
   set Residual tolerance of multipass = 1e-6
-  set Quit multipass if residual increasing = true
+  set Quit multipass if residual increasing = false
 
   # "linear" to solve K_phi * phi = r_phi
   # "newton" to solve K_phi * delta phi = r_phi, phi = phi - delta phi
@@ -68,7 +68,7 @@ subsection Finite element system
   set Physical dimension = 2
 
   # Displacement system polynomial order
-  set Polynomial degree = 1
+  set Polynomial degree = 2
 
   # Gauss quadrature order
   set Quadrature order  = 3

@@ -1,7 +1,7 @@
 subsection Project
-  set Project name = singleNotchTensionFatigueKristensen
-  set Mesh from = ../meshes/singleNotchDense.inp
-  set Boundary from = ../meshes/singleNotchTensionCyclicKristensenJaccon_boundary.txt
+  set Project name = JonasCTParis
+  set Mesh from = ../meshes/CT022L5.inp
+  set Boundary from = ../meshes/JonasCTParis_boundary.txt
   set Output directory = ../output/
   set Load sequence from = script
   set Enable phase field = true
@@ -13,33 +13,32 @@ end
 
 subsection Runtime
   # Time step
-  set Adaptive timestep = JacconCycleJump
-  set Adaptive timestep parameters = 1 512
-  set Max No of timesteps = 240000
-  set Timestep size = 0.5
-  set Timestep size to switch to = 0.5
+  set Adaptive timestep = JonasCycleJump
+  set Adaptive timestep parameters = 0 1 60 1
+  set Max No of timesteps = 12000
+  set Timestep size = 0.25
+  set Timestep size to switch to = 0.25
   set Switch timestep after steps = 0
 
   # Solver
   set Use Direct Inner Solver = true
-  set Newton lower bound = 1.0e-10
+  set Newton lower bound = 1.0e-6
   set Newton maximum steps = 50
   set Upper Newton rho = 0.999
   set Maximum number of adjustment steps of Newton solution = 10
+  set Save vtk per step = 4
 
   set Adjustment method = KristensenModifiedNewton
   set Adjustment method for elasticity = KristensenModifiedNewton
-  set Parameters of line search = 0.1
-  set Parameters of modified newton = 25 100
-
-  set Save vtk per step = 100
+  set Parameters of line search = 0.2
+  set Parameters of modified newton = 4 1
 
   # Phase field scheme
   set Use monolithic = false
   set Use multipass staggered = true
   set Maximum number of multipass steps = 20
-  set Residual tolerance of multipass = 1e-8
-  set Quit multipass if residual increasing = true
+  set Residual tolerance of multipass = 1e-6
+  set Quit multipass if residual increasing = false
 
   # "linear" to solve K_phi * phi = r_phi
   # "newton" to solve K_phi * delta phi = r_phi, phi = phi - delta phi
@@ -48,20 +47,21 @@ subsection Runtime
   # "eigen" for eigen decomposition (http://dx.doi.org/10.1016/j.commatsci.2016.04.009)
   # "hybrid" for hybrid decomposition with eigen decomposition acting on residual (https://doi.org/10.1007/s00466-014-1109-y) (https://doi.org/10.1016/j.cma.2022.115535)
   # "sphere" for spherical decompostion (volumetric and deviatoric parts) (https://doi.org/10.1016/j.jmps.2009.04.011)
-  set Decomposition = hybridnotension
+  set Decomposition = hybrid
 
   # Numerical
   set Constant small quantity k = 1.0e-6
 end
 
 subsection Material
-    set Young's modulus = 210000
-    set Poisson's ratio = 0.3
-    set Critical energy release rate = 2.7
-    set Phase field length scale = 0.016
-    set Plane state = strain
-    set Fatigue degradation = KristensenAsymptotic
-    set Fatigue accumulation = JacconNodegrade
+    set Young's modulus = 6000
+    set Poisson's ratio = 0.22
+    set Critical energy release rate = 2.28
+    set Phase field length scale = 0.2
+    set Plane state = stress
+    set Fatigue degradation = CarraraAsymptotic
+    set Fatigue degradation parameters = 60
+    set Fatigue accumulation = Jonas
 end
 
 subsection Finite element system
@@ -69,7 +69,7 @@ subsection Finite element system
   set Physical dimension = 2
 
   # Displacement system polynomial order
-  set Polynomial degree = 1
+  set Polynomial degree = 2
 
   # Gauss quadrature order
   set Quadrature order  = 3
@@ -103,7 +103,7 @@ subsection Finite element system
   #                   exp(-a2)=phi_ref*exp(-a1)
   # and this is how phi_ref is determined.
   set Phase field initial influential ratio (for refinement) = 2
-  set Phase field final influential ratio (for refinement) = 3
+  set Phase field final influential ratio (for refinement) = 5
   set Minimum relative size of refined cells w.r.t l_phi = 0.2
 end
 
