@@ -17,7 +17,7 @@ public:
             double degrade_second_derivative, Controller<dim> &ctl) {
     double increm = increment(lqph_q, phasefield, degrade, degrade_derivative,
                               degrade_second_derivative, ctl);
-    lqph_q->update("Fatigue history", increm, "accumulate");
+    lqph_q->update("Fatigue history", std::max(increm, 0.0), "accumulate");
     record(lqph_q, phasefield, degrade, degrade_derivative,
            degrade_second_derivative, ctl);
   }

@@ -274,13 +274,13 @@ public:
   double lambda2, lambda3;
 
   double alpha_t;
-  double R, f, T;
+  double corrected_estimation, f, T;
   double subcycle;
   unsigned int n_jump;
   unsigned int last_jump;
   unsigned int n_jump_initial;
   unsigned int expected_cycles;
-  unsigned int n_cracks;
+  unsigned int n_tips;
   double monitor, trial_monitor;
   double Delta, trial_Delta;
   std::vector<double> monitor1, monitor2, monitor3;
@@ -295,19 +295,20 @@ public:
   double trial_cycle_start_output_time, trial_cycle_start_timestep_number;
 
   bool refine_state;
+  bool throw_multipass_state;
+
+  double D_tip, D_ext;
+  double c_tip, c_ext;
 
   JonasCycleJump(Controller<dim> &ctl)
       : ConstantTimeStep<dim>(ctl), Ns(4), stage(1), Lambda0(0), Lambda1(0),
-        Lambda2(0), subcycle(1), n_jump(0), lambda2(1.0), lambda3(1.0),
+        Lambda2(0), subcycle(0), n_jump(0), lambda2(1.0), lambda3(1.0),
         Delta(0), last_jump(0), monitor(0), trial_monitor(0),
         initial_save_period(0), doing_cycle_jump(false),
         consecutive_n_jump_0(false), n_jump_initial(0), trial_cycle(false),
         trial_cycle_start(-1), trial_cycle_end(-1),
         trial_cycle_start_output_time(-1),
-        trial_cycle_start_timestep_number(-1), trial_Delta(0),
-        // The zero step is skipped, so the first element of monitor1 should
-        // be initialized
-        monitor1(1, 0), resolved_cycles(1, 0) {
+        trial_cycle_start_timestep_number(-1), trial_Delta(0){
     if (ctl.params.fatigue_accumulation != "Jonas") {
       ctl.dcout << "JonasCycleJump is expected to used with "
                    "JonasAccumulation, but it's not. Please make sure "
@@ -318,17 +319,44 @@ public:
         ctl.params.adaptive_timestep_parameters != "",
         ExcInternalError("Parameters of JonasCycleJump is not assigned."));
     std::istringstream iss(ctl.params.adaptive_timestep_parameters);
-    iss >> R >> f >> alpha_t >> n_cracks;
+    iss >> corrected_estimation >> f >> alpha_t >> n_tips >> lambda2 >>
+        lambda3;
     T = 1 / f;
+
+    if (ctl.params.phasefield_model == "AT1") {
+      D_tip = n_tips * numbers::PI * std::pow(ctl.params.l_phi, 2) / 3.0;
+      D_ext = 4.0 / 3.0 * ctl.params.l_phi;
+      if (std::abs(corrected_estimation) > 1e-8) {
+        c_tip = 7.15261495 * std::exp(-0.70789363 * corrected_estimation) +
+                1.4236912;
+        c_ext = 1.2628246 * std::exp(-0.55521829 * corrected_estimation) +
+                1.16223472;
+        D_tip *= c_tip;
+        D_ext *= c_ext;
+      }
+    } else if (ctl.params.phasefield_model == "AT2") {
+      D_tip = n_tips * numbers::PI * std::pow(ctl.params.l_phi, 2);
+      D_ext = 2.0 * ctl.params.l_phi;
+      if (std::abs(corrected_estimation) > 1e-8) {
+        c_tip = 7.59315987 * std::exp(-0.64105545 * corrected_estimation) +
+                1.80994109;
+        c_ext = 1.23659923 * std::exp(-0.53470298 * corrected_estimation) +
+                1.1750714;
+        D_tip *= c_tip;
+        D_ext *= c_ext;
+      }
+    } else {
+      AssertThrow(false, ExcNotImplemented());
+    }
+
     expected_cycles = std::round(
         (ctl.params.timestep * (ctl.params.switch_timestep + 1) +
          ctl.params.timestep_size_2 *
              (ctl.params.max_no_timesteps - ctl.params.switch_timestep - 1)) /
         T);
     initial_save_period = ctl.params.save_vtk_per_step;
-    ctl.set_info("Subcycle", 1.0 + ctl.params.timestep /
-                                       T); // PointHistory won't record at the
-                                           // first step (it should be zero).
+    throw_multipass_state = ctl.params.throw_if_multipass_increase;
+    ctl.set_info("Subcycle", ctl.params.timestep / T);
     ctl.set_info("Stage", stage);
     AssertThrow(
         std::fmod(T, ctl.params.timestep) < 1e-8 &&
@@ -341,8 +369,9 @@ public:
   };
 
   void initialize_timestep(Controller<dim> &ctl) {
-    ctl.dcout << "JonasCycleJump using parameter: R=" << R << ", f=" << f
-              << "Hz" << std::endl;
+    ctl.dcout << "JonasCycleJump using parameter: f=" << f
+              << "Hz, alpha_t=" << alpha_t << ", n_tips=" << n_tips
+              << std::endl;
     ctl.params.save_vtk_per_step = 1e10;
     ctl.dcout << "JonasCycleJump disables periodical outputs. Instead, it will "
                  "save after each cycle jump, or after every "
@@ -442,8 +471,10 @@ public:
           ctl.dcout << "Estimated number of jumps: " << n_jump << std::endl;
           subcycle = 0.0; // PointHistory will record from y1 again.
         }
-
-        AssertThrow(n_jump < 1e10, ExcInternalError("Infinite cycle jump."));
+        if (n_jump > 1e8){
+          ctl.dcout << "Infinite cycle jump. Set to zero" << std::endl;
+          n_jump = 0;
+        }
         if (n_jump > 1) {
           ctl.set_info("N jump", n_jump);
           ctl.dcout << "Doing cycle jumping in this timestep: jumping "
@@ -459,6 +490,7 @@ public:
           trial_cycle_start_output_time = ctl.output_timestep_number;
           trial_cycle_start_timestep_number = ctl.timestep_number;
           ctl.params.save_vtk_per_step = 1e10;
+          ctl.params.throw_if_multipass_increase = true;
           refine_state = ctl.params.refine;
           if (refine_state) {
             ctl.dcout << "Refinement is disabled temporarily" << std::endl;
@@ -492,7 +524,7 @@ public:
     if (doing_cycle_jump || trial_cycle) {
       // Doing cycle jump
       if (newton_reduction > ctl.params.upper_newton_rho) {
-        n_jump = std::max(static_cast<int>(std::round(n_jump_initial / 2)), 0);
+        n_jump = std::max(static_cast<int>(std::round(n_jump_initial / 2)), 1);
         ctl.set_info("N jump", n_jump);
         ctl.dcout << "The system fails to establish equilibrium. Reducing the "
                      "number of jumps to "
@@ -507,23 +539,35 @@ public:
           trial_monitor = get_stage3_monitor(ctl);
         }
         trial_Delta = trial_monitor - monitor;
-        AssertThrow(
-            trial_Delta >= 0,
-            ExcInternalError("The increment of monitored value is negative."));
-        if (trial_Delta > 1.5 * Delta) {
-          n_jump = std::max(static_cast<int>(std::round(Delta / trial_Delta *
-                                                        n_jump_initial)),
-                            0);
-          ctl.set_info("N jump", n_jump);
-          ctl.dcout << "The real increment of the monitored value ("
-                    << trial_Delta
-                    << ") is much "
-                       "higher than expected ("
-                    << Delta
-                    << "). Reducing the "
-                       "number of jumps to "
-                    << n_jump << " cycles with 1 trial cycle" << std::endl;
-          return true;
+        if (std::abs(ctl.time - trial_cycle_end) < 1e-8) {
+          if (trial_Delta < 0) {
+            n_jump =
+                std::max(static_cast<int>(std::round(n_jump_initial / 2)), 1);
+            ctl.dcout << "The increment of monitored value is negative ("
+                      << trial_Delta << ")" << std::endl;
+            ctl.dcout << "Reducing the "
+                         "number of jumps to "
+                      << n_jump << " cycles with 1 trial cycle" << std::endl;
+            return true;
+          } else if (trial_Delta > 1.5 * Delta) {
+            n_jump = std::max(static_cast<int>(std::round(Delta / trial_Delta *
+                                                          n_jump_initial)),
+                              1);
+            ctl.set_info("N jump", n_jump);
+            ctl.dcout << "The real increment of the monitored value ("
+                      << trial_Delta
+                      << ") is much "
+                         "higher/smaller than expected ("
+                      << Delta
+                      << "). Adjusting the "
+                         "number of jumps to "
+                      << n_jump << " cycles with 1 trial cycle" << std::endl;
+            return true;
+          } else {
+            ctl.dcout << "Trial Delta: " << trial_Delta
+                      << " Expected Delta: " << Delta << std::endl;
+            return false;
+          }
         } else {
           ctl.dcout << "Trial Delta: " << trial_Delta
                     << " Expected Delta: " << Delta << std::endl;
@@ -546,18 +590,7 @@ public:
   double get_stage3_monitor(Controller<dim> &ctl) {
     double phase_integral =
         GlobalEstimator::sum<dim>("Phase field JxW", 0.0, ctl);
-    double res;
-    if (ctl.params.phasefield_model == "AT1") {
-      res = (phase_integral -
-             n_cracks * numbers::PI * std::pow(ctl.params.l_phi, 2) / 3.0) /
-            (4.0 / 3.0 * ctl.params.l_phi);
-    } else if (ctl.params.phasefield_model == "AT2") {
-      res = (phase_integral -
-             n_cracks * numbers::PI * std::pow(ctl.params.l_phi, 2)) /
-            (2.0 * ctl.params.l_phi);
-    } else {
-      AssertThrow(false, ExcNotImplemented());
-    }
+    double res = (phase_integral - D_tip) / D_ext;
     return res;
   }
 
@@ -584,7 +617,7 @@ public:
                 << trial_cycle_start << " and jump again with " << n_jump
                 << " cycles + 1 trial cycle" << std::endl;
     }
-    return T * ((n_jump > 1) ? (n_jump - 1) : 1);
+    return T * ((n_jump >= 1) ? (n_jump - 1) : 1);
   }
 
   void failure_criteria(Controller<dim> &ctl) override {
@@ -593,8 +626,8 @@ public:
                                "cycle jump is performed.");
     } else if (doing_cycle_jump && consecutive_n_jump_0) {
       throw std::runtime_error("Staggered scheme does not converge when the "
-                               "number of jump is reduced to zero.");
-    } else if (doing_cycle_jump && n_jump == 0) {
+                               "number of jump is reduced to one.");
+    } else if (doing_cycle_jump && n_jump == 1) {
       consecutive_n_jump_0 = true;
     } else {
       consecutive_n_jump_0 = false;
@@ -618,6 +651,8 @@ public:
       this->save_results = true;
       ctl.params.save_vtk_per_step = 1e10;
       ctl.params.refine = refine_state;
+      ctl.params.throw_if_multipass_increase = throw_multipass_state;
+      consecutive_n_jump_0 = false;
     } else {
       ctl.output_timestep_number +=
           (std::fmod(subcycle, 1) < 1e-8 && subcycle > 0) ? 0 : (-1);
@@ -1048,10 +1083,8 @@ public:
     if (!(std::abs(subcycle) < 1e-8 && n_resolved_cycles >= 1)) {
       throw std::runtime_error("Staggered scheme does not converge when no"
                                "cycle jump is performed.");
-    } else if (n_trials > 100 ||
-               (last_residual > last_last_residual * 0.999 &&
-                residual > last_residual * 0.999) ||
-               residual > last_residual * 1.2) {
+    } else if (n_trials > 100 || (last_residual > last_last_residual &&
+                                  residual > last_residual)) {
       throw std::runtime_error(
           "Trapezoidal iterative extrapolation does not converge. Consider "
           "using a smaller cycle jump.");
