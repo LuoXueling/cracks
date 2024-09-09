@@ -71,8 +71,9 @@ template <int dim> void PhaseFieldFracture<dim>::return_old_solution() {
 }
 
 template <int dim> void PhaseFieldFracture<dim>::record_checkpoint() {
-  (this->ctl).record_point_history((this->ctl).quadrature_point_history,
-                                   (this->ctl).quadrature_point_history_checkpoint);
+  (this->ctl).record_point_history(
+      (this->ctl).quadrature_point_history,
+      (this->ctl).quadrature_point_history_checkpoint);
   elasticity.record_checkpoint(this->ctl);
   if ((this->ctl).params.enable_phase_field) {
     phasefield.record_checkpoint(this->ctl);
@@ -80,8 +81,9 @@ template <int dim> void PhaseFieldFracture<dim>::record_checkpoint() {
 }
 
 template <int dim> void PhaseFieldFracture<dim>::return_checkpoint() {
-  (this->ctl).record_point_history((this->ctl).quadrature_point_history_checkpoint,
-                                   (this->ctl).quadrature_point_history);
+  (this->ctl).record_point_history(
+      (this->ctl).quadrature_point_history_checkpoint,
+      (this->ctl).quadrature_point_history);
   elasticity.return_checkpoint(this->ctl);
   if ((this->ctl).params.enable_phase_field) {
     phasefield.return_checkpoint(this->ctl);
@@ -216,9 +218,10 @@ template <int dim> bool PhaseFieldFracture<dim>::refine_grid() {
     (this->ctl).debug_dcout << "Refine - prepare" << std::endl;
     // Prepare transferring of point history
     parallel::distributed::ContinuousQuadratureDataTransfer<dim, PointHistory>
-        point_history_transfer(FE_Q<dim>((this->ctl).params.poly_degree),
-                               QGaussLobatto<dim>((this->ctl).params.poly_degree + 1),
-                               QGaussLobatto<dim>((this->ctl).params.poly_degree + 1));
+        point_history_transfer(
+            FE_Q<dim>(QGaussLobatto<1>((this->ctl).params.poly_degree+1)),
+            QGaussLobatto<dim>((this->ctl).params.poly_degree + 1),
+            QGaussLobatto<dim>((this->ctl).params.poly_degree + 1));
     point_history_transfer.prepare_for_coarsening_and_refinement(
         (this->ctl).triangulation, (this->ctl).quadrature_point_history);
 
