@@ -10,4 +10,6 @@
 # For "sineneumann"/"triangularneumann", the third part is dimensionless. And add a fourth part being frequency(Hz), mean(MPa), and amplitude(MPa), for example "20 1 2"
 1 velocity 1 1
 2 dirichlet 1 0
+3 dirichlet 0 0
+3 dirichlet 1 0
 
