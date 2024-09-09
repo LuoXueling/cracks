@@ -144,7 +144,7 @@ public:
         (record_c <= ctl.last_refinement_timestep_number && info.i_step) ||
         ctl.timestep_number == 0 || record_i > n_i ||
         (ctl.timestep_number - record_c) > n_c ||
-        info.new_residual > info.old_residual * 10) {
+        info.new_residual > info.old_residual) {
       record_i = 0;
       record_c = ctl.timestep_number;
       ever_built = true;

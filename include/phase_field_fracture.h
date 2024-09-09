@@ -117,23 +117,35 @@ template <int dim> double PhaseFieldFracture<dim>::staggered_scheme() {
     double newton_reduction_elasticity = 0, newton_reduction_phasefield = 0;
     double phasefield_residual;
     double last_residual = 1e8, last_last_residual = 1e9;
+    bool residual_decreased = false;
     for (unsigned int cnt = 0; cnt < (this->ctl).params.max_multipass; ++cnt) {
       newton_reduction_phasefield = solve_phase_field_subproblem();
       newton_reduction_elasticity = solve_elasticity_subproblem();
       phasefield.update_newton_residual(this->ctl);
       if ((this->ctl).params.multipass_staggered) {
-        phasefield_residual = get_norm(phasefield.system_rhs, (this->ctl).params.norm_type);
+        phasefield_residual =
+            get_norm(phasefield.system_rhs, (this->ctl).params.norm_type);
         (this->ctl).dcout << "Phase field residual: " << phasefield_residual
                           << std::endl;
+        if (cnt >= 2 && phasefield_residual < last_residual &&
+            last_residual < last_last_residual) {
+          residual_decreased = true;
+        }
         if (phasefield_residual < (this->ctl.params).multipass_residual_tol)
           break;
-        if ((((last_residual > last_last_residual * 0.999 &&
-               phasefield_residual > last_residual * 0.999) ||
-              phasefield_residual > last_residual * 1.2) &&
-             (this->ctl).params.quit_multipass_if_increase) ||
-            (phasefield.newton_info.i_step == 1 &&
-             elasticity.newton_info.i_step == 1))
+        if (phasefield.newton_info.i_step == 1 &&
+            elasticity.newton_info.i_step == 1) {
           break;
+        }
+        if (last_residual > last_last_residual &&
+            phasefield_residual > last_residual) {
+          if ((this->ctl).params.throw_if_multipass_increase &&
+              !residual_decreased) {
+            throw SolverControl::NoConvergence(0, 0);
+          } else if ((this->ctl).params.quit_multipass_if_increase) {
+            break;
+          }
+        }
         last_last_residual = last_residual;
         last_residual = phasefield_residual;
       } else {

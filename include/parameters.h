@@ -84,6 +84,7 @@ struct Runtime {
   unsigned int max_multipass;
   double multipass_residual_tol;
   bool quit_multipass_if_increase;
+  bool throw_if_multipass_increase;
   std::string phase_field_scheme;
   std::string decomposition;
   double constant_k;
@@ -150,6 +151,8 @@ void Runtime::subsection_declare_parameters(ParameterHandler &prm) {
                       Patterns::Double(0));
     prm.declare_entry("Quit multipass if residual increasing", "true",
                       Patterns::Bool());
+    prm.declare_entry("Throw if multipass residual increasing", "false",
+                      Patterns::Bool());
 
     prm.declare_entry("Phase field update", "newton",
                       Patterns::Selection("newton|linear"));
@@ -204,6 +207,8 @@ void Runtime::subsection_parse_parameters(ParameterHandler &prm) {
     multipass_residual_tol = prm.get_double("Residual tolerance of multipass");
     quit_multipass_if_increase =
         prm.get_bool("Quit multipass if residual increasing");
+    throw_if_multipass_increase =
+        prm.get_bool("Throw if multipass residual increasing");
 
     phase_field_scheme = prm.get("Phase field update");
     decomposition = prm.get("Decomposition");
