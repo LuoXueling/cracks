@@ -147,19 +147,32 @@ public:
         increm = 0.0;
         lqph->update("Accumulated increment", alpha_max, "latest");
       }
-      // Determine the number of jumps
-      double subcycle = ctl.get_info("Subcycle", 0.0);
+    } else {
+      double s12 = lqph->get_initial("s12", 0.0);
+      double s23 = lqph->get_initial("s23", 0.0);
+      increm = s12 * n_jumps + (s12 - s23) * std::pow(n_jumps, 2) / 2.0;
+    }
+    return increm;
+  };
+
+  void record(const std::shared_ptr<PointHistory> &lqph, double phasefield,
+              double degrade, double degrade_derivative,
+              double degrade_second_derivative, Controller<dim> &ctl) {
+    // Determine the number of jumps
+    int n_jumps = static_cast<int>(ctl.get_info("N jump", 0.0));
+    double subcycle = ctl.get_info("Subcycle", 0.0);
+    if (n_jumps == 0) {
       if (subcycle == 2) {
-        lqph->update("y3", lqph->get_initial("Fatigue history", 0.0));
+        lqph->update("y3", lqph->get_latest("Fatigue history", 0.0));
       } else if (subcycle == 3) {
-        double y3 = lqph->get_initial("y3", 0.0);
-        double y2 = lqph->get_initial("Fatigue history", 0.0);
+        double y3 = lqph->get_latest("y3", 0.0);
+        double y2 = lqph->get_latest("Fatigue history", 0.0);
         lqph->update("y2", y2);
         lqph->update("s23", y2 - y3);
       } else if (subcycle == 4) {
-        double s23 = lqph->get_initial("s23", 0.0);
-        double y1 = lqph->get_initial("Fatigue history", 0.0);
-        double y2 = lqph->get_initial("y2", 0.0);
+        double s23 = lqph->get_latest("s23", 0.0);
+        double y1 = lqph->get_latest("Fatigue history", 0.0);
+        double y2 = lqph->get_latest("y2", 0.0);
         double s12 = y1 - y2;
         lqph->update("s12", s12);
         double max_jump = ctl.get_info("Maximum jump", 1.0e8);
@@ -170,13 +183,8 @@ public:
         }
         ctl.set_info("N jump local", n_jump_local);
       }
-    } else {
-      double s12 = lqph->get_initial("s12", 0.0);
-      double s23 = lqph->get_initial("s23", 0.0);
-      increm = s12 * n_jumps + (s12 - s23) * std::pow(n_jumps, 2) / 2.0;
     }
-    return increm;
-  };
+  }
   double R, alpha_c, alpha_t, Se, alpha_e, q_jump;
 };
 
