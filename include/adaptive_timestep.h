@@ -210,24 +210,21 @@ public:
               << "Hz" << std::endl;
 
     ctl.params.timestep_size_2 = T;
-    ctl.params.save_vtk_per_step = 5;
-    ctl.dcout << "CojocaruCycleJump setting timestep to a cycle (" << T
-              << "s), setting save_vtk_per_step to 5, which is a period of "
-                 "cycle jump."
+    ctl.params.save_vtk_per_step = 1e10;
+    ctl.dcout << "Cojocaru disables periodical outputs. Instead, it will "
+                 "save after each cycle jump."
               << std::endl;
   }
 
   double current_timestep(Controller<dim> &ctl) override {
     subcycle++;
     ctl.set_info("Subcycle", static_cast<double>(subcycle));
-    if (subcycle == 1) {
+    if (subcycle < 4) {
       n_jump = 0;
       ctl.set_info("N jump", n_jump);
       ctl.set_info("N jump local", max_jumps);
       return ctl.current_timestep;
-    } else if (subcycle == 5) {
-      subcycle = 0;
-
+    } else if (subcycle == 4) {
       double n_jump_temp = ctl.get_info("N jump local", max_jumps);
       n_jump_temp = Utilities::MPI::min(n_jump_temp, ctl.mpi_com);
 
@@ -242,6 +239,13 @@ public:
       return ctl.current_timestep * n_jump;
     } else {
       return ctl.current_timestep;
+    }
+  }
+
+  void after_step(Controller<dim> &ctl) {
+    if (subcycle == 4) {
+      subcycle = 1;
+      this->save_results = true;
     }
   }
 

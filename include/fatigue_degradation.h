@@ -162,14 +162,14 @@ public:
     int n_jumps = static_cast<int>(ctl.get_info("N jump", 0.0));
     double subcycle = ctl.get_info("Subcycle", 0.0);
     if (n_jumps == 0) {
-      if (subcycle == 2) {
+      if (subcycle == 1) {
         lqph->update("y3", lqph->get_latest("Fatigue history", 0.0));
-      } else if (subcycle == 3) {
+      } else if (subcycle == 2) {
         double y3 = lqph->get_latest("y3", 0.0);
         double y2 = lqph->get_latest("Fatigue history", 0.0);
         lqph->update("y2", y2);
         lqph->update("s23", y2 - y3);
-      } else if (subcycle == 4) {
+      } else if (subcycle == 3) {
         double s23 = lqph->get_latest("s23", 0.0);
         double y1 = lqph->get_latest("Fatigue history", 0.0);
         double y2 = lqph->get_latest("y2", 0.0);
@@ -182,6 +182,10 @@ public:
               std::min(q_jump * s12 / std::abs(s12 - s23), n_jump_local);
         }
         ctl.set_info("N jump local", n_jump_local);
+      }
+    } else {
+      if (subcycle == 4) {
+        lqph->update("y3", lqph->get_latest("Fatigue history", 0.0));
       }
     }
   }
