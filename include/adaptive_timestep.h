@@ -298,6 +298,7 @@ public:
   bool throw_multipass_state;
 
   double D_tip, D_ext;
+  double initial_length;
   double c_tip, c_ext;
 
   JonasCycleJump(Controller<dim> &ctl)
@@ -308,7 +309,8 @@ public:
         consecutive_n_jump_0(false), n_jump_initial(0), trial_cycle(false),
         trial_cycle_start(-1), trial_cycle_end(-1),
         trial_cycle_start_output_time(-1),
-        trial_cycle_start_timestep_number(-1), trial_Delta(0){
+        trial_cycle_start_timestep_number(-1), trial_Delta(0),
+        initial_length(0.0) {
     if (ctl.params.fatigue_accumulation != "Jonas") {
       ctl.dcout << "JonasCycleJump is expected to used with "
                    "JonasAccumulation, but it's not. Please make sure "
@@ -319,8 +321,7 @@ public:
         ctl.params.adaptive_timestep_parameters != "",
         ExcInternalError("Parameters of JonasCycleJump is not assigned."));
     std::istringstream iss(ctl.params.adaptive_timestep_parameters);
-    iss >> corrected_estimation >> f >> alpha_t >> n_tips >> lambda2 >>
-        lambda3;
+    iss >> corrected_estimation >> f >> alpha_t >> n_tips >> lambda2 >> lambda3;
     T = 1 / f;
 
     if (ctl.params.phasefield_model == "AT1") {
@@ -471,7 +472,7 @@ public:
           ctl.dcout << "Estimated number of jumps: " << n_jump << std::endl;
           subcycle = 0.0; // PointHistory will record from y1 again.
         }
-        if (n_jump > 1e8){
+        if (n_jump > 1e8) {
           ctl.dcout << "Infinite cycle jump. Set to zero" << std::endl;
           n_jump = 0;
         }
@@ -490,7 +491,8 @@ public:
           trial_cycle_start_output_time = ctl.output_timestep_number;
           trial_cycle_start_timestep_number = ctl.timestep_number;
           ctl.params.save_vtk_per_step = 1e10;
-          ctl.params.throw_if_multipass_increase = true;
+          ctl.params.throw_if_multipass_increase =
+              false; // This is disabled for now
           refine_state = ctl.params.refine;
           if (refine_state) {
             ctl.dcout << "Refinement is disabled temporarily" << std::endl;
@@ -590,7 +592,11 @@ public:
   double get_stage3_monitor(Controller<dim> &ctl) {
     double phase_integral =
         GlobalEstimator::sum<dim>("Phase field JxW", 0.0, ctl);
-    double res = (phase_integral - D_tip) / D_ext;
+    double res = (phase_integral - D_tip) / D_ext - initial_length;
+    if (stage == 3 && std::abs(initial_length) < 1e-8) {
+      initial_length = res;
+      res = 0.0;
+    }
     return res;
   }
 
@@ -629,6 +635,7 @@ public:
                                "number of jump is reduced to one.");
     } else if (doing_cycle_jump && n_jump == 1) {
       consecutive_n_jump_0 = true;
+      ctl.params.throw_if_multipass_increase = false;
     } else {
       consecutive_n_jump_0 = false;
     }
@@ -713,6 +720,10 @@ public:
                    "number (Max no of timestep in the configuration)."
                 << std::endl;
       return true;
+    } else if (stage == 3 && std::abs(ctl.time - trial_cycle_end) < 1e-8 &&
+               trial_Delta / Delta < 1e-2) {
+      ctl.dcout << "Terminating as the increase of crack length is too small."
+                << std::endl;
     } else {
       return false;
     }

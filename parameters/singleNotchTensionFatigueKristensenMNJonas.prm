@@ -14,7 +14,7 @@ end
 subsection Runtime
   # Time step
   set Adaptive timestep = JonasCycleJump
-  set Adaptive timestep parameters = 0 1 14.0625 2 1 0.3125
+  set Adaptive timestep parameters = 0 1 14.0625 2 1 0.2
   set Max No of timesteps = 480000
   set Timestep size = 0.25
   set Timestep size to switch to = 0.25
