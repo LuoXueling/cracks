@@ -182,7 +182,8 @@ public:
           solution_independent_old[names[i]] = values[i];
         }
       } else {
-        if (solution_buffer.find(names[i]) != solution_buffer.end()) {
+        if (solution_buffer.find(names[i - finalize_scheme.size()]) !=
+            solution_buffer.end()) {
           solution_increment_buffer[names[i - finalize_scheme.size()]] =
               values[i];
           solution_increment_old[names[i - finalize_scheme.size()]] = values[i];
