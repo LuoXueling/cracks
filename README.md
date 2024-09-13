@@ -26,15 +26,15 @@ This code is tested on the official deal.II [docker image (v9.4.0-focal)](https:
   ./compile_and_run.sh -n 8 -f parameters/singleNotchTension.prm
   ```
 
-  where  `-n ` defines the number of MPI processes and  `-f ` defines the parameter file
+  where  `-n` defines the number of MPI processes and  `-f` defines the parameter file
 
   There are some additional parameters:
 
-  *  `-s `:  ` true` or  `false `, meaning whether to use the previously compiled code.
-  *  `-r `:  `debug` or  `release `. 
+  *  `-s`:  `true` or  `false`, meaning whether to use the previously compiled code.
+  *  `-r`:  `debug` or  `release`. 
 
 ### Extensions
 
-If you want to define a new field, ideally you have to (and only have to) imitate  ` phase_field.h` or  ` elasticity.h` (that inherits  ` abstract_field.h`) to define operations for the field, and then imitate  ` phase_field_fracture.h` (that inherits `abstract_multiphysics.h`) to define a regime of solving the multiphysical system (particularly the staggered scheme). 
+If you want to define a new field, ideally you have to (and only have to) imitate  `phase_field.h` or  `elasticity.h` (that inherits  `abstract_field.h`) to define operations for the field, and then imitate  `phase_field_fracture.h` (that inherits `abstract_multiphysics.h`) to define a regime of solving the multiphysical system (particularly the staggered scheme). 
 
  
