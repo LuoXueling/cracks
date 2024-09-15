@@ -231,6 +231,48 @@ public:
   }
 };
 
+template <int dim> class JonasCLAAccumulation : public JonasAccumulation<dim> {
+public:
+  JonasCLAAccumulation(Controller<dim> &ctl) : JonasAccumulation<dim>(ctl) {
+    AssertThrow(ctl.params.fatigue_accumulation_parameters != "",
+                ExcInternalError(
+                    "Parameters of JonasCLAAccumulation is not assigned."));
+    std::istringstream iss(ctl.params.fatigue_accumulation_parameters);
+    iss >> R;
+  };
+  double increment(const std::shared_ptr<PointHistory> &lqph, double phasefield,
+                   double degrade, double degrade_derivative,
+                   double degrade_second_derivative,
+                   Controller<dim> &ctl) override {
+    int n_jumps = static_cast<int>(ctl.get_info("N jump", 0.0));
+    double increm = 0;
+    double trial_cycle = ctl.get_info("Trial cycle", 0.0);
+
+    if ((n_jumps == 0 && std::abs(trial_cycle) < 1e-8) ||
+        ctl.current_timestep != ctl.params.timestep_size_2) {
+      // Regular accumulation
+      if (ctl.current_timestep != ctl.params.timestep_size_2) {
+        double dpsi =
+            lqph->get_increment_latest("Positive elastic energy", 0.0) *
+            degrade;
+        increm = (dpsi > 0 ? 1.0 : 0.0) * dpsi;
+      } else {
+        double psi = lqph->get_latest("Positive elastic energy", 0.0) * degrade;
+        increm = psi * (1 - R * R * (R >= 0 ? 1 : 0));
+      }
+    } else if (n_jumps > 0) {
+      double y1 = lqph->get_initial("y1", 0.0);
+      double y2 = lqph->get_initial("y2", 0.0);
+      double y3 = lqph->get_initial("y3", 0.0);
+      double y4 = lqph->get_initial("y4", 0.0);
+      increm = 1.0 / 6 * (-2 * y1 + 9 * y2 - 18 * y3 + 11 * y4) * n_jumps +
+               0.5 * (-y1 + 4 * y2 - 5 * y3 + 2 * y4) * std::pow(n_jumps, 2);
+    }
+    return increm;
+  };
+  double R;
+};
+
 template <int dim>
 class JonasNodegradeAccumulation : public JonasAccumulation<dim> {
 public:
@@ -418,6 +460,8 @@ select_fatigue_accumulation(std::string method, Controller<dim> &ctl) {
     return std::make_unique<CojocaruCLAAccumulation<dim>>(ctl);
   else if (method == "Jonas")
     return std::make_unique<JonasAccumulation<dim>>(ctl);
+  else if (method == "JonasCLA")
+    return std::make_unique<JonasCLAAccumulation<dim>>(ctl);
   else if (method == "JonasNodegrade")
     return std::make_unique<JonasNodegradeAccumulation<dim>>(ctl);
   else if (method == "Yang")
