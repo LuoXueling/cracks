@@ -42,7 +42,7 @@ public:
       AssertThrow(false,
                   ExcNotImplemented("Point history update scheme is illegal."));
     }
-    increment_dict[name] = res - _get(name, old_dict, 0.0);
+    increment_dict[name] = res - _get(name, old_dict, res);
     dict[name] = res;
     finalize_scheme[name] = scheme;
   }

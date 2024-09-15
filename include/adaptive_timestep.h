@@ -111,7 +111,7 @@ public:
       n_jump = 1;
     }
     ctl.set_info("N jump", 1);
-    if (ctl.params.timestep * (ctl.params.switch_timestep + 1) != 0.25 * T) {
+    if (ctl.params.timestep * ctl.params.switch_timestep != 0.25 * T) {
       ctl.dcout << "The initial timestep has to be switched when "
                    "reaching a quarter of a cycle. Otherwise a phase has to be "
                    "assigned in the cyclic boundary condition."
@@ -119,11 +119,11 @@ public:
     }
     n_cycles_per_vtk = static_cast<int>(std::round(
         ctl.params.save_vtk_per_step / (T / ctl.params.timestep_size_2)));
-    expected_cycles = std::round(
-        (ctl.params.timestep * (ctl.params.switch_timestep + 1) +
-         ctl.params.timestep_size_2 *
-             (ctl.params.max_no_timesteps - ctl.params.switch_timestep - 1)) /
-        T);
+    expected_cycles =
+        std::round((ctl.params.timestep * ctl.params.switch_timestep +
+                    ctl.params.timestep_size_2 * (ctl.params.max_no_timesteps -
+                                                  ctl.params.switch_timestep)) /
+                   T);
   }
 
   void initialize_timestep(Controller<dim> &ctl) {
@@ -193,16 +193,16 @@ public:
     std::istringstream iss(ctl.params.adaptive_timestep_parameters);
     iss >> R >> f >> max_jumps;
     T = 1 / f;
-    AssertThrow(ctl.params.timestep * (ctl.params.switch_timestep + 1) ==
-                    0.25 * T,
+    AssertThrow(ctl.params.timestep * ctl.params.switch_timestep == 0.25 * T,
                 ExcInternalError("The initial timestep has to be switched when "
                                  "reaching a quarter of a cycle."));
+    ctl.set_info("N jump", n_jump);
     ctl.set_info("Maximum jump", max_jumps);
-    expected_cycles = std::round(
-        (ctl.params.timestep * (ctl.params.switch_timestep + 1) +
-         ctl.params.timestep_size_2 *
-             (ctl.params.max_no_timesteps - ctl.params.switch_timestep - 1)) /
-        T);
+    expected_cycles =
+        std::round((ctl.params.timestep * (ctl.params.switch_timestep) +
+                    ctl.params.timestep_size_2 * (ctl.params.max_no_timesteps -
+                                                  ctl.params.switch_timestep)) /
+                   T);
   };
 
   void initialize_timestep(Controller<dim> &ctl) {
@@ -217,6 +217,8 @@ public:
   }
 
   double current_timestep(Controller<dim> &ctl) override {
+    if (ctl.current_timestep != ctl.params.timestep_size_2)
+      return ctl.current_timestep;
     subcycle++;
     ctl.set_info("Subcycle", static_cast<double>(subcycle));
     if (subcycle < 4) {
@@ -354,22 +356,19 @@ public:
       AssertThrow(false, ExcNotImplemented());
     }
 
-    expected_cycles = std::round(
-        (ctl.params.timestep * (ctl.params.switch_timestep + 1) +
-         ctl.params.timestep_size_2 *
-             (ctl.params.max_no_timesteps - ctl.params.switch_timestep - 1)) /
-        T);
+    expected_cycles =
+        std::round((ctl.params.timestep * (ctl.params.switch_timestep) +
+                    ctl.params.timestep_size_2 * (ctl.params.max_no_timesteps -
+                                                  ctl.params.switch_timestep)) /
+                   T);
     initial_save_period = ctl.params.save_vtk_per_step;
     throw_multipass_state = ctl.params.throw_if_multipass_increase;
+    ctl.set_info("N jump", n_jump);
     ctl.set_info("Subcycle", ctl.params.timestep / T);
     ctl.set_info("Stage", stage);
     AssertThrow(
         std::fmod(T, ctl.params.timestep) < 1e-8 &&
             std::fmod(T, ctl.params.timestep_size_2) < 1e-8,
-        ExcInternalError("The period has to be divisible by the time step"));
-    AssertThrow(
-        std::fmod(T - ctl.params.timestep * (ctl.params.switch_timestep + 1),
-                  ctl.params.timestep_size_2) < 1e-8,
         ExcInternalError("The period has to be divisible by the time step"));
   };
 
@@ -385,16 +384,24 @@ public:
   }
 
   double current_timestep(Controller<dim> &ctl) override {
+    if (ctl.current_timestep != ctl.params.timestep_size_2)
+      return ctl.current_timestep;
     if (!trial_cycle) {
       if (stage == 1 && monitor > alpha_t) {
         stage = 2;
         ctl.dcout << "Entering stage 2" << std::endl;
-        subcycle = std::fmod(ctl.time, T) /
-                   T; // PointHistory will record from y1 again.
+        subcycle = std::fmod(ctl.time, T) / T -
+                   ((ctl.params.timestep != ctl.params.timestep_size_2)
+                        ? ctl.params.timestep * ctl.params.switch_timestep / T
+                        : 0);
+        // PointHistory will record from y1 again.
       } else if (stage == 2 && monitor > 0.99) {
         stage = 3;
         ctl.dcout << "Entering stage 3" << std::endl;
-        subcycle = std::fmod(ctl.time, T) / T;
+        subcycle = std::fmod(ctl.time, T) / T -
+                   ((ctl.params.timestep != ctl.params.timestep_size_2)
+                        ? ctl.params.timestep * ctl.params.switch_timestep / T
+                        : 0);
       }
     } else {
       n_jump = 0;
@@ -680,7 +687,8 @@ public:
       ctl.dcout << "The monitored value (at stage " << stage << "): " << monitor
                 << "." << std::endl;
     }
-    if (std::fmod(subcycle, 1) < 1e-8 && !trial_cycle) {
+    if (std::fmod(subcycle, 1) < 1e-8 &&
+        ctl.current_timestep == ctl.params.timestep_size_2 && !trial_cycle) {
       resolved_cycles.emplace_back(ctl.time / T);
       if (stage == 1) {
         // The jump directly skip the first stage after the first Ns cycles
@@ -728,6 +736,7 @@ public:
                trial_Delta / Delta < 1e-2) {
       ctl.dcout << "Terminating as the increase of crack length is too small."
                 << std::endl;
+      return true;
     } else {
       return false;
     }
@@ -770,21 +779,18 @@ public:
     std::istringstream iss(ctl.params.adaptive_timestep_parameters);
     iss >> f >> epsilon >> E >> epsilon_max;
     T = 1 / f;
-    expected_cycles = std::round(
-        (ctl.params.timestep * (ctl.params.switch_timestep + 1) +
-         ctl.params.timestep_size_2 *
-             (ctl.params.max_no_timesteps - ctl.params.switch_timestep - 1)) /
-        T);
+    expected_cycles =
+        std::round((ctl.params.timestep * (ctl.params.switch_timestep) +
+                    ctl.params.timestep_size_2 * (ctl.params.max_no_timesteps -
+                                                  ctl.params.switch_timestep)) /
+                   T);
     initial_save_period = ctl.params.save_vtk_per_step;
+    ctl.set_info("N jump", n_jump);
     ctl.set_info("Subcycle", subcycle); // PointHistory won't record at the
                                         // first step (it should be zero).
     AssertThrow(
         std::fmod(T, ctl.params.timestep) < 1e-8 &&
             std::fmod(T, ctl.params.timestep_size_2) < 1e-8,
-        ExcInternalError("The period has to be divisible by the time step"));
-    AssertThrow(
-        std::fmod(T - ctl.params.timestep * (ctl.params.switch_timestep + 1),
-                  ctl.params.timestep_size_2) < 1e-8,
         ExcInternalError("The period has to be divisible by the time step"));
     tol = epsilon * 1e5 * E * epsilon_max * epsilon_max / 2;
     ctl.set_info("Last jump", last_jump);
@@ -802,6 +808,8 @@ public:
   }
 
   double current_timestep(Controller<dim> &ctl) override {
+    if (ctl.current_timestep != ctl.params.timestep_size_2)
+      return ctl.current_timestep;
     double time_step = ctl.current_timestep;
     if (std::abs(subcycle - 1) < 1e-8) {
       subcycle = 0.0;
@@ -1004,18 +1012,14 @@ public:
     T = 1 / f;
     ctl.set_info("N jump", n_jump);
     ctl.set_info("N trials", 0);
-    expected_cycles = std::round(
-        (ctl.params.timestep * (ctl.params.switch_timestep + 1) +
-         ctl.params.timestep_size_2 *
-             (ctl.params.max_no_timesteps - ctl.params.switch_timestep - 1)) /
-        T);
+    expected_cycles =
+        std::round((ctl.params.timestep * (ctl.params.switch_timestep) +
+                    ctl.params.timestep_size_2 * (ctl.params.max_no_timesteps -
+                                                  ctl.params.switch_timestep)) /
+                   T);
     AssertThrow(
         std::fmod(T, ctl.params.timestep) < 1e-8 &&
             std::fmod(T, ctl.params.timestep_size_2) < 1e-8,
-        ExcInternalError("The period has to be divisible by the time step"));
-    AssertThrow(
-        std::fmod(T - ctl.params.timestep * (ctl.params.switch_timestep + 1),
-                  ctl.params.timestep_size_2) < 1e-8,
         ExcInternalError("The period has to be divisible by the time step"));
   };
 
@@ -1029,6 +1033,8 @@ public:
   }
 
   double current_timestep(Controller<dim> &ctl) override {
+    if (ctl.current_timestep != ctl.params.timestep_size_2)
+      return ctl.current_timestep;
     double time_step = ctl.current_timestep;
     if (std::abs(subcycle - 1) < 1e-8 && n_resolved_cycles >= 1) {
       trial_start = ctl.time;

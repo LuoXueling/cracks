@@ -97,10 +97,17 @@ public:
                    double degrade, double degrade_derivative,
                    double degrade_second_derivative,
                    Controller<dim> &ctl) override {
-    double psi = lqph->get_latest("Positive elastic energy", 0.0);
-    double n_jump = ctl.get_info("N jump", 1);
-    double increm = psi * (1 - R * R * (R >= 0 ? 1 : 0)) * n_jump;
-    return increm;
+    if (ctl.current_timestep != ctl.params.timestep_size_2) {
+      double dpsi =
+          lqph->get_increment_latest("Positive elastic energy", 0.0) * degrade;
+      double increm = (dpsi > 0 ? 1.0 : 0.0) * dpsi;
+      return increm;
+    } else {
+      double psi = lqph->get_latest("Positive elastic energy", 0.0) * degrade;
+      double n_jump = ctl.get_info("N jump", 1);
+      double increm = psi * (1 - R * R * (R >= 0 ? 1 : 0)) * n_jump;
+      return increm;
+    }
   };
   double R;
 };
@@ -118,15 +125,8 @@ public:
     AssertThrow(ctl.params.fatigue_accumulation_parameters != "",
                 ExcInternalError(
                     "Parameters of CojocaruCLAAccumulation is not assigned."));
-    alpha_c = 3 * ctl.params.Gc / (16 * ctl.params.l_phi);
     std::istringstream iss(ctl.params.fatigue_accumulation_parameters);
-    iss >> R >> alpha_t >> Se;
-    if (!iss.eof()) {
-      iss >> q_jump;
-    } else {
-      q_jump = 0;
-    }
-    alpha_e = std::pow(Se, 2) / 2 / ctl.params.E;
+    iss >> R >> q_jump;
   };
   double increment(const std::shared_ptr<PointHistory> &lqph, double phasefield,
                    double degrade, double degrade_derivative,
@@ -134,18 +134,16 @@ public:
                    Controller<dim> &ctl) override {
     int n_jumps = static_cast<int>(ctl.get_info("N jump", 0.0));
     double increm;
-    if (n_jumps == 0) {
+    if (n_jumps == 0 || ctl.current_timestep != ctl.params.timestep_size_2) {
       // Regular accumulation
-      double psi = lqph->get_latest("Positive elastic energy", 0.0) * degrade;
-      double H = lqph->get_latest("Driving force", 0.0);
-      double alpha_max =
-          std::max(lqph->get_latest("Accumulated increment", 0.0), psi);
-      if (H * (1 - R) / 2 > alpha_e) {
-        increm = alpha_max * (1 - R) / 2 / alpha_c;
-        lqph->update("Accumulated increment", 0.0, "latest");
+      if (ctl.current_timestep != ctl.params.timestep_size_2) {
+        double dpsi =
+            lqph->get_increment_latest("Positive elastic energy", 0.0) *
+            degrade;
+        increm = (dpsi > 0 ? 1.0 : 0.0) * dpsi;
       } else {
-        increm = 0.0;
-        lqph->update("Accumulated increment", alpha_max, "latest");
+        double psi = lqph->get_latest("Positive elastic energy", 0.0) * degrade;
+        increm = psi * (1 - R * R * (R >= 0 ? 1 : 0));
       }
     } else {
       double s12 = lqph->get_initial("s12", 0.0);
@@ -189,7 +187,7 @@ public:
       }
     }
   }
-  double R, alpha_c, alpha_t, Se, alpha_e, q_jump;
+  double R, q_jump;
 };
 
 template <int dim> class JonasAccumulation : public FatigueAccumulation<dim> {
@@ -203,7 +201,8 @@ public:
     double increm = 0;
     double trial_cycle = ctl.get_info("Trial cycle", 0.0);
 
-    if (n_jumps == 0 && std::abs(trial_cycle) < 1e-8) {
+    if ((n_jumps == 0 && std::abs(trial_cycle) < 1e-8) ||
+        ctl.current_timestep != ctl.params.timestep_size_2) {
       // Regular accumulation
       double dpsi =
           lqph->get_increment_latest("Positive elastic energy") * degrade;
@@ -257,7 +256,8 @@ public:
     double increm = 0;
     double subcycle = ctl.get_info("Subcycle", 0.0);
 
-    if (std::abs(subcycle - 0) > 1e-8 || std::abs(n_jumps) < 1e-8) {
+    if (std::abs(subcycle - 0) > 1e-8 || std::abs(n_jumps) < 1e-8 ||
+        ctl.current_timestep != ctl.params.timestep_size_2) {
       // Regular accumulation
       double dpsi =
           lqph->get_increment_latest("Positive elastic energy") * degrade;
@@ -302,7 +302,8 @@ public:
     double increm = 0;
     double subcycle = ctl.get_info("Subcycle", 0.0);
 
-    if (std::abs(subcycle - 0) > 1e-8) {
+    if (std::abs(subcycle - 0) > 1e-8 ||
+        ctl.current_timestep != ctl.params.timestep_size_2) {
       // Regular accumulation
       double dpsi =
           lqph->get_increment_latest("Positive elastic energy") * degrade;

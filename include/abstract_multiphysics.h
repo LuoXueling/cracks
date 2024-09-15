@@ -98,6 +98,10 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
     double newton_reduction = 1.0;
     if (ctl.timestep_number > ctl.params.switch_timestep)
       ctl.current_timestep = ctl.params.timestep_size_2;
+    else if (ctl.timestep_number > 0)
+      ctl.current_timestep = ctl.params.timestep;
+    else
+      ctl.current_timestep = 0.0;
 
     double tmp_current_timestep = ctl.current_timestep;
     ctl.old_timestep = ctl.current_timestep;
