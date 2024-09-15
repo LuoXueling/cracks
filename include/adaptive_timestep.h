@@ -70,7 +70,16 @@ public:
       AssertThrow(false, ExcInternalError("Step size too small"))
     }
   }
-  virtual bool terminate(Controller<dim> &ctl) { return false; }
+  virtual bool terminate(Controller<dim> &ctl) {
+    double crack_length = GlobalEstimator::sum<dim>("Diffusion JxW", 0.0, ctl);
+    ctl.dcout << "Crack length estimated by diffusion: " << crack_length << std::endl;
+    if (crack_length > ctl.params.max_crack_length) {
+       ctl.dcout << "Terminating as the crack length exceeds the expected value (" << ctl.params.max_crack_length << ")" << std::endl;
+       return true;
+    } else {
+      return false;
+    }
+  }
 
   std::vector<double> historical_timesteps;
   double last_time;
@@ -166,7 +175,7 @@ public:
                 << std::endl;
       return true;
     } else {
-      return false;
+      return AdaptiveTimeStep<dim>::terminate(ctl);
     }
   }
 
@@ -258,7 +267,7 @@ public:
                 << std::endl;
       return true;
     } else {
-      return false;
+      return AdaptiveTimeStep<dim>::terminate(ctl);
     }
   }
 
@@ -738,7 +747,7 @@ public:
                 << std::endl;
       return true;
     } else {
-      return false;
+      return AdaptiveTimeStep<dim>::terminate(ctl);
     }
   }
 };
@@ -937,12 +946,6 @@ public:
       }
       ctl.output_timestep_number += (std::abs(subcycle - 1) < 1e-8) ? 0 : (-1);
     }
-    if (std::abs(subcycle - 1) < 1e-8) {
-      double crack_length =
-          GlobalEstimator::sum<dim>("Diffusion JxW", 0.0, ctl);
-      ctl.dcout << "Crack length estimated by diffusion: " << crack_length
-                << " at cycle " << ctl.output_timestep_number + 1 << std::endl;
-    }
     ctl.dcout << "The number of resolved cycles: " << n_resolved_cycles
               << std::endl;
   }
@@ -970,7 +973,7 @@ public:
                 << std::endl;
       return true;
     } else {
-      return false;
+      return AdaptiveTimeStep<dim>::terminate(ctl);
     }
   }
 };
@@ -1174,7 +1177,7 @@ public:
                 << std::endl;
       return true;
     } else {
-      return false;
+      return AdaptiveTimeStep<dim>::terminate(ctl);
     }
   }
 };

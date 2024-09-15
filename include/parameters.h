@@ -89,6 +89,7 @@ struct Runtime {
   std::string decomposition;
   double constant_k;
   unsigned int save_vtk_per_step;
+  double max_crack_length;
 
   static void subsection_declare_parameters(ParameterHandler &prm);
 
@@ -164,6 +165,8 @@ void Runtime::subsection_declare_parameters(ParameterHandler &prm) {
     prm.declare_entry("Constant small quantity k", "1.0e-6",
                       Patterns::Double(0));
     prm.declare_entry("Save vtk per step", "1", Patterns::Integer(0));
+
+    prm.declare_entry("Maximum crack length", "1e8", Patterns::Double(0));
   }
   prm.leave_subsection();
 }
@@ -216,6 +219,7 @@ void Runtime::subsection_parse_parameters(ParameterHandler &prm) {
     constant_k = prm.get_double("Constant small quantity k");
 
     save_vtk_per_step = prm.get_integer("Save vtk per step");
+    max_crack_length = prm.get_double("Maximum crack length");
   }
   prm.leave_subsection();
 }
