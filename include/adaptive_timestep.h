@@ -759,6 +759,7 @@ public:
   double subcycle;
   double tol;
   double max_diff;
+  unsigned int max_jump;
   unsigned int n_jump;
   unsigned int last_jump, last_last_jump;
   unsigned int expected_cycles;
@@ -786,7 +787,7 @@ public:
         ctl.params.adaptive_timestep_parameters != "",
         ExcInternalError("Parameters of YangCycleJump is not assigned."));
     std::istringstream iss(ctl.params.adaptive_timestep_parameters);
-    iss >> f >> epsilon >> E >> epsilon_max;
+    iss >> f >> epsilon >> E >> epsilon_max >> max_jump;
     T = 1 / f;
     expected_cycles =
         std::round((ctl.params.timestep * (ctl.params.switch_timestep) +
@@ -847,6 +848,9 @@ public:
         ctl.params.save_vtk_per_step = initial_save_period;
         n_jump = 0;
         ctl.set_info("N jump", n_jump);
+        last_last_jump = last_jump;
+        last_jump = 1;
+        ctl.set_info("Last jump", last_jump);
         subcycle = 0.0;
       }
     } else {
@@ -871,8 +875,9 @@ public:
     if (n_resolved_cycles < 2) {
       return 1;
     } else {
-      return std::max(
-          1, static_cast<int>(std::floor(std::sqrt(tol * 2 * m / max_diff))));
+      return std::min<unsigned int>(
+          max_jump, std::max(1, static_cast<int>(std::floor(
+                                    std::sqrt(tol * 2 * m / max_diff)))));
     }
   }
 
@@ -929,16 +934,16 @@ public:
     }
     if (std::abs(subcycle - 1) < 1e-8 && n_resolved_cycles >= 2) {
       ctl.output_timestep_number += last_jump - 1;
-      if (last_jump > 0) {
+      if (last_jump > 1) {
         ctl.dcout
             << "Cycle jump is done successfully. The number of jumped cycle: "
             << last_jump << " (including the preceding cycle)." << std::endl;
+        this->save_results = true;
+        ctl.params.save_vtk_per_step = 1e10;
       }
       n_jump = 0;
       ctl.set_info("N jump", n_jump);
       n_resolved_cycles++;
-      this->save_results = true;
-      ctl.params.save_vtk_per_step = 1e10;
       ctl.params.refine = refine_state;
     } else {
       if (std::abs(subcycle - 1) < 1e-8) {
