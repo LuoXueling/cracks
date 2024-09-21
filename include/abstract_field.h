@@ -60,6 +60,13 @@ public:
   virtual double update_linear_system(Controller<dim> &ctl);
   virtual double update_newton_system(Controller<dim> &ctl);
   virtual void update_newton_residual(Controller<dim> &ctl);
+  void project_from_pointhistory_to_nodes(
+      std::string name, Vector<double> &local_history_fe_values,
+      const std::vector<std::shared_ptr<PointHistory>> &lqph,
+      FullMatrix<double> &qpoint_to_dof_matrix, Controller<dim> &ctl);
+  void point_history_gradient(Tensor<1, dim> &grad,
+                              Vector<double> &local_history_fe_values,
+                              std::vector<Tensor<1, dim>> &Bphi_kq);
   parallel::distributed::SolutionTransfer<dim, LA::MPI::BlockVector>
   prepare_refine();
   void
@@ -263,7 +270,8 @@ void AbstractField<dim>::setup_neumann_boundary_condition(
   ctl.debug_dcout << "Setting neumann boundary" << std::endl;
   neumann_rhs = 0;
 
-  const QGaussLobatto<dim - 1> face_quadrature_formula(ctl.params.poly_degree + 1);
+  const QGaussLobatto<dim - 1> face_quadrature_formula(ctl.params.poly_degree +
+                                                       1);
   const unsigned int n_face_q_points = face_quadrature_formula.size();
   const unsigned int dofs_per_cell = fe.dofs_per_cell;
   FEFaceValues<dim> fe_face_values(fe, face_quadrature_formula,
@@ -632,6 +640,31 @@ void AbstractField<dim>::post_refine(
   soltrans.interpolate(interpolated_solution);
   solution = interpolated_solution;
   record_old_solution(ctl);
+}
+
+template <int dim>
+void AbstractField<dim>::project_from_pointhistory_to_nodes(
+    std::string name, Vector<double> &local_history_fe_values,
+    const std::vector<std::shared_ptr<PointHistory>> &lqph,
+    FullMatrix<double> &qpoint_to_dof_matrix, Controller<dim> &ctl) {
+  Vector<double> local_history_values_at_qpoints;
+  local_history_values_at_qpoints.reinit(ctl.quadrature_formula.size());
+  local_history_fe_values.reinit((this->fe).n_dofs_per_cell());
+  for (unsigned int q = 0; q < ctl.quadrature_formula.size(); ++q)
+    local_history_values_at_qpoints(q) = lqph[q]->get_latest(name, 0.0);
+  qpoint_to_dof_matrix.vmult(local_history_fe_values,
+                             local_history_values_at_qpoints);
+}
+
+template <int dim>
+void AbstractField<dim>::point_history_gradient(
+    Tensor<1, dim> &grad, Vector<double> &local_history_fe_values,
+    std::vector<Tensor<1, dim>> &Bphi_kq) {
+  for (unsigned int m = 0; m < dim; ++m) {
+    for (unsigned int k = 0; k < (this->fe).n_dofs_per_cell(); ++k) {
+      grad[m] += local_history_fe_values[k] * Bphi_kq[k][m];
+    }
+  }
 }
 
 #endif // CRACKS_ABSTRACT_FIELD_H
