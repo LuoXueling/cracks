@@ -212,8 +212,9 @@ public:
       double y2 = lqph->get_initial("y2", 0.0);
       double y3 = lqph->get_initial("y3", 0.0);
       double y4 = lqph->get_initial("y4", 0.0);
-      increm = 1.0 / 6 * (-2 * y1 + 9 * y2 - 18 * y3 + 11 * y4) * n_jumps +
-               0.5 * (-y1 + 4 * y2 - 5 * y3 + 2 * y4) * std::pow(n_jumps, 2);
+      increm =
+          1.0 / 6.0 * (-2.0 * y1 + 9.0 * y2 - 18.0 * y3 + 11.0 * y4) * n_jumps +
+          0.5 * (-y1 + 4.0 * y2 - 5.0 * y3 + 2.0 * y4) * std::pow(n_jumps, 2.0);
     }
     return increm;
   };
@@ -265,8 +266,9 @@ public:
       double y2 = lqph->get_initial("y2", 0.0);
       double y3 = lqph->get_initial("y3", 0.0);
       double y4 = lqph->get_initial("y4", 0.0);
-      increm = 1.0 / 6 * (-2 * y1 + 9 * y2 - 18 * y3 + 11 * y4) * n_jumps +
-               0.5 * (-y1 + 4 * y2 - 5 * y3 + 2 * y4) * std::pow(n_jumps, 2);
+      increm =
+          1.0 / 6.0 * (-2.0 * y1 + 9.0 * y2 - 18.0 * y3 + 11.0 * y4) * n_jumps +
+          0.5 * (-y1 + 4.0 * y2 - 5.0 * y3 + 2.0 * y4) * std::pow(n_jumps, 2.0);
     }
     return increm;
   };

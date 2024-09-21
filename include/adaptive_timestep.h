@@ -72,10 +72,13 @@ public:
   }
   virtual bool terminate(Controller<dim> &ctl) {
     double crack_length = GlobalEstimator::sum<dim>("Diffusion JxW", 0.0, ctl);
-    ctl.dcout << "Crack length estimated by diffusion: " << crack_length << std::endl;
+    ctl.dcout << "Crack length estimated by diffusion: " << crack_length
+              << std::endl;
     if (crack_length > ctl.params.max_crack_length) {
-       ctl.dcout << "Terminating as the crack length exceeds the expected value (" << ctl.params.max_crack_length << ")" << std::endl;
-       return true;
+      ctl.dcout
+          << "Terminating as the crack length exceeds the expected value ("
+          << ctl.params.max_crack_length << ")" << std::endl;
+      return true;
     } else {
       return false;
     }
@@ -577,9 +580,7 @@ public:
                               1);
             ctl.set_info("N jump", n_jump);
             ctl.dcout << "The real increment of the monitored value ("
-                      << trial_Delta
-                      << ") is much "
-                         "higher/smaller than expected ("
+                      << trial_Delta << ") is much higher than expected ("
                       << Delta
                       << "). Adjusting the "
                          "number of jumps to "
@@ -669,14 +670,14 @@ public:
         ctl.dcout
             << "Cycle jump is done successfully. The number of jumped cycle: "
             << last_jump << "." << std::endl;
+        this->save_results = true;
+        ctl.params.save_vtk_per_step = 1e10;
       }
       n_jump = 0;
       doing_cycle_jump = false;
       trial_cycle = false;
       ctl.set_info("Trial cycle", 0.0);
       ctl.set_info("N jump", n_jump);
-      this->save_results = true;
-      ctl.params.save_vtk_per_step = 1e10;
       ctl.params.refine = refine_state;
       ctl.params.throw_if_multipass_increase = throw_multipass_state;
       consecutive_n_jump_0 = false;
