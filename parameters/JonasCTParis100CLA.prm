@@ -1,7 +1,7 @@
 subsection Project
-  set Project name = JonasCTParis
+  set Project name = JonasCTParis100
   set Mesh from = ../meshes/CT022L5.inp
-  set Boundary from = ../meshes/JonasCTParis_boundary.txt
+  set Boundary from = ../meshes/JonasCTParis100_boundary.txt
   set Output directory = ../output/
   set Load sequence from = script
   set Enable phase field = true
@@ -13,11 +13,14 @@ end
 
 subsection Runtime
   # Time step
-  set Adaptive timestep = constant
-  set Max No of timesteps = 12000
+  set Adaptive timestep = KristensenCLA
+  set Adaptive timestep parameters = 0 1
+  set Max No of timesteps = 3000
   set Timestep size = 0.25
-  set Timestep size to switch to = 0.25
-  set Switch timestep after steps = 0
+  set Timestep size to switch to = 1
+  set Switch timestep after steps = 1
+
+  set Maximum crack length = 30
 
   # Solver
   set Use Direct Inner Solver = true
@@ -25,7 +28,7 @@ subsection Runtime
   set Newton maximum steps = 50
   set Upper Newton rho = 0.999
   set Maximum number of adjustment steps of Newton solution = 10
-  set Save vtk per step = 4
+  set Save vtk per step = 10
 
   set Adjustment method = KristensenModifiedNewton
   set Adjustment method for elasticity = KristensenModifiedNewton
@@ -60,7 +63,8 @@ subsection Material
     set Plane state = stress
     set Fatigue degradation = CarraraAsymptotic
     set Fatigue degradation parameters = 60
-    set Fatigue accumulation = CarraraNoMeanEffect
+    set Fatigue accumulation = KristensenCLA
+    set Fatigue accumulation parameters = 0
 end
 
 subsection Finite element system

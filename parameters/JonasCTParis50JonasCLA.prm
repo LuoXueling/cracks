@@ -1,7 +1,7 @@
 subsection Project
-  set Project name = JonasCTParis
+  set Project name = JonasCTParis50
   set Mesh from = ../meshes/CT022L5.inp
-  set Boundary from = ../meshes/JonasCTParis_boundary.txt
+  set Boundary from = ../meshes/JonasCTParis50_boundary.txt
   set Output directory = ../output/
   set Load sequence from = script
   set Enable phase field = true
@@ -15,10 +15,12 @@ subsection Runtime
   # Time step
   set Adaptive timestep = JonasCycleJump
   set Adaptive timestep parameters = 0 1 60 2 1 1
-  set Max No of timesteps = 12000
+  set Max No of timesteps = 30000
   set Timestep size = 0.25
-  set Timestep size to switch to = 0.25
-  set Switch timestep after steps = 0
+  set Timestep size to switch to = 1
+  set Switch timestep after steps = 1
+
+  set Maximum crack length = 30
 
   # Solver
   set Use Direct Inner Solver = true
@@ -26,17 +28,19 @@ subsection Runtime
   set Newton maximum steps = 50
   set Upper Newton rho = 0.999
   set Maximum number of adjustment steps of Newton solution = 10
+  set Allow skip first Newton iteration = false
+
   set Save vtk per step = 4
 
   set Adjustment method = KristensenModifiedNewton
   set Adjustment method for elasticity = KristensenModifiedNewton
   set Parameters of line search = 0.2
-  set Parameters of modified newton = 4 1
+  set Parameters of modified newton = 4 0
 
   # Phase field scheme
   set Use monolithic = false
   set Use multipass staggered = true
-  set Maximum number of multipass steps = 20
+  set Maximum number of multipass steps = 50
   set Residual tolerance of multipass = 1e-6
   set Quit multipass if residual increasing = false
 
@@ -61,7 +65,8 @@ subsection Material
     set Plane state = stress
     set Fatigue degradation = CarraraAsymptotic
     set Fatigue degradation parameters = 60
-    set Fatigue accumulation = Jonas
+    set Fatigue accumulation = JonasCLA
+    set Fatigue accumulation parameters = 0
 end
 
 subsection Finite element system
