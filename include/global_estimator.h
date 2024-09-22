@@ -91,6 +91,47 @@ double absmax(std::string name, double default_value, Controller<dim> &ctl) {
   return global_max;
 }
 
+template <int dim>
+double min(std::string name, double default_value, Controller<dim> &ctl) {
+  DoFHandler<dim> dof_handler(ctl.triangulation);
+  const unsigned int n_q_points = ctl.quadrature_formula.size();
+
+  double local_min = 1e10;
+  for (const auto &cell : dof_handler.active_cell_iterators()) {
+    if (cell->is_locally_owned()) {
+      const std::vector<std::shared_ptr<PointHistory>> lqph =
+          ctl.quadrature_point_history.get_data(cell);
+      for (unsigned int q = 0; q < n_q_points; ++q) {
+        local_min = std::min(lqph[q]->get_either_latest(name, default_value),
+                             local_min);
+      }
+    }
+  }
+  double global_min = Utilities::MPI::min(local_min, ctl.mpi_com);
+  return global_min;
+}
+
+template <int dim>
+double absmin(std::string name, double default_value, Controller<dim> &ctl) {
+  DoFHandler<dim> dof_handler(ctl.triangulation);
+  const unsigned int n_q_points = ctl.quadrature_formula.size();
+
+  double local_min = 1e10;
+  for (const auto &cell : dof_handler.active_cell_iterators()) {
+    if (cell->is_locally_owned()) {
+      const std::vector<std::shared_ptr<PointHistory>> lqph =
+          ctl.quadrature_point_history.get_data(cell);
+      for (unsigned int q = 0; q < n_q_points; ++q) {
+        local_min =
+            std::min(std::abs(lqph[q]->get_either_latest(name, default_value)),
+                     local_min);
+      }
+    }
+  }
+  double global_min = Utilities::MPI::min(local_min, ctl.mpi_com);
+  return global_min;
+}
+
 }; // namespace GlobalEstimator
 
 #endif // CRACKS_GLOBAL_ESTIMATOR_H

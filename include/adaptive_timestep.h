@@ -233,11 +233,10 @@ public:
     if (subcycle < 3) {
       n_jump = 0;
       ctl.set_info("N jump", n_jump);
-      ctl.set_info("N jump local", max_jumps);
       timestep = ctl.current_timestep;
     } else if (std::abs(subcycle - 3) < 1e-8) {
-      double n_jump_temp = ctl.get_info("N jump local", max_jumps);
-      n_jump_temp = Utilities::MPI::min(n_jump_temp, ctl.mpi_com);
+      double n_jump_temp =
+          GlobalEstimator::min<dim>("n_jump_local", max_jumps, ctl);
 
       n_jump = std::min(max_jumps,
                         static_cast<unsigned int>(std::floor(n_jump_temp)));
