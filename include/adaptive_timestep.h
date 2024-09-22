@@ -156,7 +156,7 @@ public:
       return ctl.current_timestep;
     } else {
       ctl.set_info("N jump", n_jump);
-      return ctl.current_timestep * n_jump;
+      return T * n_jump;
     }
   }
 
@@ -220,8 +220,6 @@ public:
   void initialize_timestep(Controller<dim> &ctl) {
     ctl.dcout << "CojocaruCycleJump using parameter: R=" << R << ", f=" << f
               << "Hz" << std::endl;
-
-    ctl.params.timestep_size_2 = T;
     ctl.params.save_vtk_per_step = 1e10;
     ctl.dcout << "Cojocaru disables periodical outputs. Instead, it will "
                  "save after each cycle jump."
@@ -231,14 +229,13 @@ public:
   double current_timestep(Controller<dim> &ctl) override {
     if (ctl.current_timestep != ctl.params.timestep_size_2)
       return ctl.current_timestep;
-    subcycle++;
-    ctl.set_info("Subcycle", static_cast<double>(subcycle));
-    if (subcycle < 4) {
+    double timestep = 0.0;
+    if (subcycle < 3) {
       n_jump = 0;
       ctl.set_info("N jump", n_jump);
       ctl.set_info("N jump local", max_jumps);
-      return ctl.current_timestep;
-    } else if (subcycle == 4) {
+      timestep = ctl.current_timestep;
+    } else if (std::abs(subcycle - 3) < 1e-8) {
       double n_jump_temp = ctl.get_info("N jump local", max_jumps);
       n_jump_temp = Utilities::MPI::min(n_jump_temp, ctl.mpi_com);
 
@@ -248,18 +245,27 @@ public:
       ctl.set_info("N jump", n_jump);
       ctl.dcout << "Doing cycle jumping in this timestep: jumping " << n_jump
                 << " cycles" << std::endl;
-      ctl.output_timestep_number +=
-          n_jump - 1; // the remaining 1 will be added automatically as normal
-      return ctl.current_timestep * n_jump;
+      timestep = T * n_jump;
     } else {
-      return ctl.current_timestep;
+      timestep = ctl.current_timestep;
     }
+    if (std::abs(subcycle - 3) < 1e-8) {
+      subcycle = 1;
+    } else {
+      subcycle += ctl.current_timestep / T;
+    }
+    ctl.set_info("Subcycle", subcycle);
+    ctl.dcout << "Current subcycle: " << subcycle << std::endl;
+    return timestep;
   }
 
   void after_step(Controller<dim> &ctl) {
-    if (subcycle == 4) {
+    if (n_jump > 0) {
       subcycle = 1;
+      ctl.output_timestep_number += n_jump - 1;
       this->save_results = true;
+    } else {
+      ctl.output_timestep_number += (std::fmod(subcycle, 1) < 1e-8) ? 0 : (-1);
     }
   }
 
@@ -276,7 +282,7 @@ public:
 
   double R, f, T;
   unsigned int max_jumps;
-  unsigned int subcycle;
+  double subcycle;
   unsigned int n_jump;
   unsigned int expected_cycles;
 };

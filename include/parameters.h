@@ -269,7 +269,7 @@ void Material::subsection_declare_parameters(ParameterHandler &prm) {
         "Fatigue accumulation", "CarraraNoMeanEffect",
         Patterns::Selection(
             "CarraraNoMeanEffect|CarraraMeanEffect|Kristensen|"
-            "KristensenCLA|CojocaruCLA|Jonas|JonasCLA|JonasNodegrade|"
+            "KristensenCLA|Cojocaru|CojocaruCLA|Jonas|JonasCLA|JonasNodegrade|"
             "Yang|Jaccon|JacconNodegrade"));
     prm.declare_entry("Fatigue accumulation parameters", "",
                       Patterns::Anything());
