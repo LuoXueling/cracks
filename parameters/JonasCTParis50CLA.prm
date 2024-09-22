@@ -28,14 +28,13 @@ subsection Runtime
   set Newton maximum steps = 50
   set Upper Newton rho = 0.999
   set Maximum number of adjustment steps of Newton solution = 10
-  set Allow skip first Newton iteration = false
 
   set Save vtk per step = 100
 
   set Adjustment method = KristensenModifiedNewton
   set Adjustment method for elasticity = KristensenModifiedNewton
   set Parameters of line search = 0.2
-  set Parameters of modified newton = 4 0
+  set Parameters of modified newton = 4 1
 
   # Phase field scheme
   set Use monolithic = false
