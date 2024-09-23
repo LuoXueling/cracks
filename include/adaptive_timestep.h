@@ -210,6 +210,7 @@ public:
                                  "reaching a quarter of a cycle."));
     ctl.set_info("N jump", n_jump);
     ctl.set_info("Maximum jump", max_jumps);
+    subcycle = 1 - ctl.params.timestep_size_2 / T;
     expected_cycles =
         std::round((ctl.params.timestep * (ctl.params.switch_timestep) +
                     ctl.params.timestep_size_2 * (ctl.params.max_no_timesteps -
@@ -219,7 +220,7 @@ public:
 
   void initialize_timestep(Controller<dim> &ctl) {
     ctl.dcout << "CojocaruCycleJump using parameter: R=" << R << ", f=" << f
-              << "Hz" << std::endl;
+              << "Hz, maximum jump: " << max_jumps << std::endl;
     ctl.params.save_vtk_per_step = 1e10;
     ctl.dcout << "Cojocaru disables periodical outputs. Instead, it will "
                  "save after each cycle jump."
