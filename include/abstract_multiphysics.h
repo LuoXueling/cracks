@@ -103,9 +103,6 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
     else
       ctl.current_timestep = 0.0;
 
-    double tmp_current_timestep = ctl.current_timestep;
-    ctl.old_timestep = ctl.current_timestep;
-
     ctl.dcout << "\n=============================="
               << "===========================================" << std::endl;
 
@@ -169,7 +166,7 @@ template <int dim> void AbstractMultiphysics<dim>::run() {
     time_stepping->after_step(ctl);
     ctl.finalize_point_history();
     // Recover time step
-    ctl.current_timestep = tmp_current_timestep;
+    ctl.old_timestep = current_timestep;
     ctl.timer.leave_subsection("Solve Newton system");
     // Refine mesh.
     if (ctl.params.refine) {
