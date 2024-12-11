@@ -336,7 +336,7 @@ public:
         trial_cycle_start(-1), trial_cycle_end(-1),
         trial_cycle_start_output_time(-1),
         trial_cycle_start_timestep_number(-1), trial_Delta(0),
-        initial_length(0.0) {
+        initial_length(0.0), refine_state(false) {
     if (ctl.params.fatigue_accumulation != "Jonas") {
       ctl.dcout << "JonasCycleJump is expected to used with "
                    "JonasAccumulation, but it's not. Please make sure "
@@ -785,7 +785,7 @@ public:
       : ConstantTimeStep<dim>(ctl), subcycle(0), n_jump(0), last_jump(1),
         last_last_jump(1), initial_save_period(0), n_resolved_cycles(0),
         trial_start(-1), trial_start_output_time(-1), max_diff(0),
-        trial_start_timestep_number(-1) {
+        trial_start_timestep_number(-1), refine_state(false) {
     if (ctl.params.fatigue_accumulation != "Yang") {
       ctl.dcout << "YangCycleJump is expected to used with "
                    "YangAccumulation, but it's not. Please make sure "
@@ -884,9 +884,9 @@ public:
     if (n_resolved_cycles < 2) {
       return 1;
     } else {
-      return std::min<unsigned int>(
-          max_jump, std::max(1, static_cast<int>(std::floor(
-                                    std::sqrt(tol * 2 * m / max_diff)))));
+      int estimated =
+          static_cast<int>(std::floor(std::sqrt(tol * 2 * m / max_diff)));
+      return std::min<unsigned int>(max_jump, std::max(1, estimated));
     }
   }
 
@@ -1013,8 +1013,8 @@ public:
       : ConstantTimeStep<dim>(ctl), n_jump(0), n_resolved_cycles(0),
         trial_start(-1), trial_start_output_time(-1),
         trial_start_timestep_number(-1), subcycle(0), initial_max_alpha(1e10),
-        n_trials(0), last_last_residual(1e9), last_residual(1e8),
-        residual(1e7) {
+        n_trials(0), last_last_residual(1e9), last_residual(1e8), residual(1e7),
+        refine_state(false) {
     if (ctl.params.fatigue_accumulation != "Jaccon") {
       ctl.dcout << "JacconCycleJump is expected to used with "
                    "JacconAccumulation, but it's not. Please make sure "

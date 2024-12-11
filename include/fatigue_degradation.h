@@ -161,7 +161,7 @@ public:
       lqph->update("s12", s12);
       double max_jump = ctl.get_info("Maximum jump", 1.0e8);
       double n_jump_local = max_jump;
-      if (phasefield < 0.95 && s12 > 1e-10 &&
+      if (phasefield < 0.95 && phasefield > 0.001 &&
           std::abs(s12 - s23) / std::abs(s12) > 1e-5) {
         n_jump_local = q_jump * s12 / std::abs(s12 - s23);
       }
