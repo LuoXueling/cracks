@@ -1,7 +1,7 @@
 subsection Project
-  set Project name = CarraraCTParis
-  set Mesh from = ../meshes/CT022L5.inp
-  set Boundary from = ../meshes/CarraraCTParis_boundary.txt
+  set Project name = singleNotchTensionFatigueCarrara
+  set Mesh from = ../meshes/singleNotchDense0008.inp
+  set Boundary from = ../meshes/singleNotchTensionCyclicCarrara_boundary.txt
   set Output directory = ../output/
   set Load sequence from = script
   set Enable phase field = true
@@ -14,14 +14,14 @@ end
 subsection Runtime
   # Time step
   set Adaptive timestep = constant
-  set Max No of timesteps = 5000
+  set Max No of timesteps = 1600
   set Timestep size = 0.25
   set Timestep size to switch to = 0.25
   set Switch timestep after steps = 0
 
   # Solver
   set Use Direct Inner Solver = true
-  set Newton lower bound = 1.0e-6
+  set Newton lower bound = 1.0e-8
   set Newton maximum steps = 50
   set Upper Newton rho = 0.999
   set Maximum number of adjustment steps of Newton solution = 10
@@ -35,8 +35,8 @@ subsection Runtime
   # Phase field scheme
   set Use monolithic = false
   set Use multipass staggered = true
-  set Maximum number of multipass steps = 20
-  set Residual tolerance of multipass = 1e-6
+  set Maximum number of multipass steps = 200
+  set Residual tolerance of multipass = 1e-8
   set Quit multipass if residual increasing = false
 
   # "linear" to solve K_phi * phi = r_phi
@@ -53,11 +53,11 @@ subsection Runtime
 end
 
 subsection Material
-    set Young's modulus = 6000
-    set Poisson's ratio = 0.22
-    set Critical energy release rate = 2.28
-    set Phase field length scale = 0.2
-    set Plane state = stress
+    set Young's modulus = 210000
+    set Poisson's ratio = 0.3
+    set Critical energy release rate = 2.7
+    set Phase field length scale = 0.004
+    set Plane state = strain
     set Fatigue degradation = CarraraAsymptotic
     set Fatigue accumulation = CarraraNoMeanEffect
 end
@@ -67,7 +67,7 @@ subsection Finite element system
   set Physical dimension = 2
 
   # Displacement system polynomial order
-  set Polynomial degree = 1
+  set Polynomial degree = 2
 
   # Gauss quadrature order
   set Quadrature order  = 3
@@ -101,7 +101,7 @@ subsection Finite element system
   #                   exp(-a2)=phi_ref*exp(-a1)
   # and this is how phi_ref is determined.
   set Phase field initial influential ratio (for refinement) = 2
-  set Phase field final influential ratio (for refinement) = 5
+  set Phase field final influential ratio (for refinement) = 3
   set Minimum relative size of refined cells w.r.t l_phi = 0.2
 end
 

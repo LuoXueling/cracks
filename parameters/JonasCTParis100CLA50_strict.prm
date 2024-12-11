@@ -1,7 +1,7 @@
 subsection Project
-  set Project name = CarraraCTParis
+  set Project name = JonasCTParis100
   set Mesh from = ../meshes/CT022L5.inp
-  set Boundary from = ../meshes/CarraraCTParis_boundary.txt
+  set Boundary from = ../meshes/JonasCTParis100_boundary.txt
   set Output directory = ../output/
   set Load sequence from = script
   set Enable phase field = true
@@ -13,11 +13,14 @@ end
 
 subsection Runtime
   # Time step
-  set Adaptive timestep = constant
-  set Max No of timesteps = 5000
+  set Adaptive timestep = KristensenCLA
+  set Adaptive timestep parameters = 0 1 50
+  set Max No of timesteps = 3000
   set Timestep size = 0.25
-  set Timestep size to switch to = 0.25
-  set Switch timestep after steps = 0
+  set Timestep size to switch to = 1
+  set Switch timestep after steps = 1
+
+  set Maximum crack length = 30
 
   # Solver
   set Use Direct Inner Solver = true
@@ -25,17 +28,17 @@ subsection Runtime
   set Newton maximum steps = 50
   set Upper Newton rho = 0.999
   set Maximum number of adjustment steps of Newton solution = 10
-  set Save vtk per step = 4
+  set Save vtk per step = 10
 
   set Adjustment method = KristensenModifiedNewton
   set Adjustment method for elasticity = KristensenModifiedNewton
   set Parameters of line search = 0.2
-  set Parameters of modified newton = 4 2
+  set Parameters of modified newton = 4 1
 
   # Phase field scheme
   set Use monolithic = false
   set Use multipass staggered = true
-  set Maximum number of multipass steps = 20
+  set Maximum number of multipass steps = 200
   set Residual tolerance of multipass = 1e-6
   set Quit multipass if residual increasing = false
 
@@ -59,7 +62,9 @@ subsection Material
     set Phase field length scale = 0.2
     set Plane state = stress
     set Fatigue degradation = CarraraAsymptotic
-    set Fatigue accumulation = CarraraNoMeanEffect
+    set Fatigue degradation parameters = 60
+    set Fatigue accumulation = KristensenCLA
+    set Fatigue accumulation parameters = 0
 end
 
 subsection Finite element system
@@ -67,7 +72,7 @@ subsection Finite element system
   set Physical dimension = 2
 
   # Displacement system polynomial order
-  set Polynomial degree = 1
+  set Polynomial degree = 2
 
   # Gauss quadrature order
   set Quadrature order  = 3
